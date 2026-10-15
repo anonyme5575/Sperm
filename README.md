@@ -13,7 +13,7 @@ Prévu pour Android 9 et plus. Pensé pour un Redmi 9AT (Android 10, MIUI 12, 2 
 | Geste | Effet |
 |---|---|
 | Toucher le bouton rond | Bascule vers l'autre app |
-| Glisser le bouton rond | Le déplace (la position est retenue) |
+| Glisser le bouton rond | Le déplace ; il se colle au bord le plus proche et reste visible en portrait comme en paysage |
 | Appui long (0,7 s) sur le bouton rond | Retour à l'écran Duo : les deux apps, « Fermer les apps en arrière-plan », « Quitter le mode Duo » (PIN demandé) |
 
 Après un redémarrage, le téléphone revient directement sur l'écran Duo, toujours verrouillé.

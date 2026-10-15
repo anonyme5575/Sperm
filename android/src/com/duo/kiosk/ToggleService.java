@@ -6,7 +6,9 @@ import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.graphics.PixelFormat;
+import android.graphics.Point;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Handler;
@@ -20,16 +22,23 @@ import android.view.WindowManager;
 import android.widget.ImageView;
 
 /**
- * Bouton flottant par-dessus les deux apps.
+ * Bouton flottant discret par-dessus les deux apps.
  * Toucher : bascule vers l'autre app (le bouton affiche son icône).
- * Appui long : revient à l'écran Duo. Glisser : déplace le bouton.
+ * Appui long : revient à l'écran Duo. Glisser : déplace le bouton, qui se colle au bord.
+ *
+ * La position est retenue en proportion de l'écran (bord gauche/droit + hauteur relative),
+ * pour rester visible quand une app passe en paysage et l'autre en portrait.
  */
 public class ToggleService extends Service {
     private static final long LONG_PRESS_MS = 700;
+    private static final float IDLE_ALPHA = 0.35f;
 
     private WindowManager wm;
     private ImageView button;
     private WindowManager.LayoutParams lp;
+    private int size;
+    private boolean right;
+    private float fy;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private SharedPreferences.OnSharedPreferenceChangeListener listener;
 
@@ -47,16 +56,15 @@ public class ToggleService extends Service {
             return;
         }
         wm = (WindowManager) getSystemService(WINDOW_SERVICE);
-        int size = dp(60);
+        size = dp(40);
         button = new ImageView(this);
-        int pad = dp(10);
+        int pad = dp(7);
         button.setPadding(pad, pad, pad, pad);
         GradientDrawable bg = new GradientDrawable();
         bg.setShape(GradientDrawable.OVAL);
-        bg.setColor(0xCC0B0F17);
-        bg.setStroke(dp(2), 0xFF3B82F6);
+        bg.setColor(0x99000000);
         button.setBackground(bg);
-        button.setElevation(dp(6));
+        button.setAlpha(IDLE_ALPHA);
 
         SharedPreferences p = Duo.prefs(this);
         lp = new WindowManager.LayoutParams(size, size,
@@ -65,8 +73,9 @@ public class ToggleService extends Service {
                         | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT);
         lp.gravity = Gravity.TOP | Gravity.START;
-        lp.x = p.getInt("btnX", getResources().getDisplayMetrics().widthPixels - size - dp(8));
-        lp.y = p.getInt("btnY", getResources().getDisplayMetrics().heightPixels / 2);
+        right = p.getBoolean("btnRight", true);
+        fy = p.getFloat("btnFy", 0.5f);
+        place();
 
         button.setOnTouchListener(new Drag());
         wm.addView(button, lp);
@@ -86,6 +95,34 @@ public class ToggleService extends Service {
         if (listener != null) Duo.prefs(this).unregisterOnSharedPreferenceChangeListener(listener);
         if (button != null) wm.removeView(button);
         super.onDestroy();
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration c) {
+        super.onConfigurationChanged(c);
+        if (button == null) return;
+        place();
+        // Certaines versions de MIUI donnent la nouvelle taille d'écran un peu après la rotation.
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (button != null) place();
+            }
+        }, 400);
+    }
+
+    private Point screen() {
+        Point pt = new Point();
+        wm.getDefaultDisplay().getRealSize(pt);
+        return pt;
+    }
+
+    /** Colle le bouton au bord choisi, à la hauteur relative retenue, toujours dans l'écran. */
+    private void place() {
+        Point s = screen();
+        lp.x = right ? s.x - size : 0;
+        lp.y = Math.round(Math.max(0f, Math.min(1f, fy)) * Math.max(0, s.y - size));
+        if (button.isAttachedToWindow()) wm.updateViewLayout(button, lp);
     }
 
     /** Le bouton montre l'icône de l'app vers laquelle on va basculer. */
@@ -125,7 +162,7 @@ public class ToggleService extends Service {
                     startX = lp.x;
                     startY = lp.y;
                     moved = longPressed = false;
-                    v.setAlpha(0.6f);
+                    v.setAlpha(1f);
                     handler.postDelayed(longPress, LONG_PRESS_MS);
                     return true;
                 case MotionEvent.ACTION_MOVE:
@@ -143,10 +180,14 @@ public class ToggleService extends Service {
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
                     handler.removeCallbacks(longPress);
-                    v.setAlpha(1f);
+                    v.setAlpha(IDLE_ALPHA);
                     if (moved) {
+                        Point s = screen();
+                        right = lp.x + size / 2 > s.x / 2;
+                        fy = s.y > size ? (float) lp.y / (s.y - size) : 0.5f;
+                        place();
                         Duo.prefs(ToggleService.this).edit()
-                                .putInt("btnX", lp.x).putInt("btnY", lp.y).apply();
+                                .putBoolean("btnRight", right).putFloat("btnFy", fy).apply();
                     } else if (!longPressed && e.getActionMasked() == MotionEvent.ACTION_UP) {
                         Duo.toggle(ToggleService.this);
                     }

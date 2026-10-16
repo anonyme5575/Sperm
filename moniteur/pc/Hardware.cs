@@ -118,7 +118,9 @@ public sealed class HardwareReader : IDisposable
         var cpu = comps.FirstOrDefault(c => c.Kind == "cpu");
         // La carte graphique dédiée (le RX 580) passe avant la puce graphique intégrée.
         var gpu = comps.FirstOrDefault(c => c.Kind == "gpu" && !c.Integrated) ?? comps.FirstOrDefault(c => c.Kind == "gpu");
-        var ram = comps.FirstOrDefault(c => c.Kind == "ram");
+        // LibreHardwareMonitor 0.9.6 sépare « Total Memory » (la RAM) et « Virtual Memory » (RAM + fichier d'échange).
+        var ram = comps.FirstOrDefault(c => c.Kind == "ram" && !c.Name.Contains("Virtual", StringComparison.OrdinalIgnoreCase))
+                  ?? comps.FirstOrDefault(c => c.Kind == "ram");
 
         if (cpu is not null)
         {

@@ -134,6 +134,7 @@ public static class Program
         try { reader = new HardwareReader(); }
         catch (Exception e) { sensorError = e.Message; }
         var system = SystemInfoReader.Read();
+        var smoother = new Smoother();
         while (true)
         {
             var start = DateTime.UtcNow;
@@ -150,6 +151,7 @@ public static class Program
             try { reader?.Fill(s); }
             catch (Exception e) { sensorError = e.Message; }
             if (reader is null) s.FpsStatus += sensorError == "" ? "" : " · capteurs : " + sensorError;
+            smoother.Apply(s, now); // avant les alertes : elles réagissent aux valeurs stables
             alerts.Evaluate(s, settings.Thresholds, now);
             s.Alerts = alerts.ActiveSorted();
             s.History = alerts.History();

@@ -157,3 +157,35 @@ public class AlertTests
         Assert.Empty(_sent); // une info ne déclenche pas de notification…
     }
 }
+
+public class SmootherTests
+{
+    [Fact]
+    public void Jumpy_load_is_smoothed()
+    {
+        var sm = new Smoother();
+        double? v = null;
+        // La charge GPU alterne 0 / 100 % chaque seconde : la valeur affichée reste vers le milieu.
+        for (int i = 0; i < 20; i++) v = sm.Next("gpu", i % 2 == 0 ? 100 : 0, i, 3);
+        Assert.InRange(v!.Value, 30, 70);
+    }
+
+    [Fact]
+    public void Missing_reading_keeps_last_value_for_a_while()
+    {
+        var sm = new Smoother();
+        sm.Next("t", 70, 0, 2);
+        Assert.Equal(70, sm.Next("t", null, 3, 2));
+        Assert.Null(sm.Next("t", null, 9, 2));
+    }
+
+    [Fact]
+    public void Steady_value_converges()
+    {
+        var sm = new Smoother();
+        double? v = null;
+        sm.Next("t", 40, 0, 2);
+        for (int i = 1; i <= 15; i++) v = sm.Next("t", 80, i, 2);
+        Assert.InRange(v!.Value, 79, 80);
+    }
+}

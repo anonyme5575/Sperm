@@ -1,0 +1,62 @@
+name: Moniteur PC
+
+on:
+  push:
+    paths:
+      - "moniteur/**"
+      - ".github/workflows/moniteur.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write # pour publier MoniteurPC.exe dans la release « moniteur-pc »
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install psutil
+      - run: python -m unittest moniteur/test_agent.py -v
+
+  exe:
+    needs: tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install psutil pyinstaller
+      # --uac-admin : Windows demande les droits administrateur au lancement (nécessaires
+      # pour mesurer les FPS avec PresentMon).
+      - run: >
+          pyinstaller --onefile --uac-admin --name MoniteurPC
+          --add-data "moniteur/web;web" moniteur/agent.py
+      - name: Vérifier que l'exe démarre et sert la page
+        shell: pwsh
+        run: |
+          $p = Start-Process dist/MoniteurPC.exe -PassThru -WindowStyle Hidden
+          Start-Sleep 8
+          $page = Invoke-WebRequest http://localhost:8790/ -UseBasicParsing
+          $etat = Invoke-RestMethod http://localhost:8790/api/etat
+          Stop-Process $p.Id -Force
+          if ($page.Content -notmatch "Moniteur PC") { throw "page introuvable" }
+          if ($null -eq $etat.cpu) { throw "pas de mesure CPU" }
+          "OK : CPU $($etat.cpu) %, RAM $($etat.ram) %, FPS : $($etat.fps_statut)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MoniteurPC
+          path: dist/MoniteurPC.exe
+      - name: Publier l'exe (lien fixe)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: moniteur-pc
+          name: Moniteur PC
+          body: |
+            Télécharge MoniteurPC.exe et lance-le (Windows demande les droits administrateur).
+            Mode d'emploi : moniteur/README.md
+          files: dist/MoniteurPC.exe
+          make_latest: false

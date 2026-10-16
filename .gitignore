@@ -1,2 +1,5 @@
 android/.tools/
 android/build/
+moniteur/moniteur-config.json
+moniteur/PresentMon*.exe
+__pycache__/

@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#121211">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Moniteur PC</title>
+<style>
+:root {
+  --bg: #121211; --surface: #1a1a19; --surface-2: #232321; --line: #2e2e2b;
+  --ink: #f2f1ec; --ink-2: #b9b7ae; --ink-3: #85837b;
+  --accent: #4f8fe6; --accent-track: #22324a;
+  --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+  --warning-track: #4a3a14; --critical-track: #4a1d1d;
+  --radius: 16px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; background: var(--bg); color: var(--ink);
+  font: 15px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+body { display: flex; flex-direction: column; overflow: hidden; }
+main { flex: 1; overflow-y: auto; padding: 12px 16px 16px; }
+.view { display: none; } .view.on { display: block; }
+
+/* Barre du haut */
+header { display: flex; align-items: center; gap: 10px; padding: 10px 16px 0; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px;
+  font-weight: 600; font-size: 13px; background: var(--surface-2); color: var(--ink); }
+.pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); }
+.pill.attention .dot { background: var(--warning); } .pill.critique .dot { background: var(--critical); }
+.pill.off .dot { background: var(--ink-3); }
+header .spacer { flex: 1; }
+#clock { color: var(--ink-2); font-size: 14px; }
+.icon-btn { background: var(--surface-2); border: 0; color: var(--ink-2); border-radius: 10px;
+  width: 34px; height: 34px; font-size: 16px; }
+
+/* Bandeau d'alertes */
+#banner { display: none; margin-bottom: 12px; }
+.alert { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px;
+  background: var(--surface); border-left: 4px solid var(--warning); margin-bottom: 8px; }
+.alert.critique { border-left-color: var(--critical); background: #2a1716; }
+.alert.info { border-left-color: var(--ink-3); }
+.alert .ic { font-size: 18px; line-height: 1.2; }
+.alert b { display: block; font-size: 14px; }
+.alert span { color: var(--ink-2); font-size: 13px; }
+.alert time { margin-left: auto; color: var(--ink-3); font-size: 12px; white-space: nowrap; }
+
+/* FPS (chiffre principal) */
+.hero { display: flex; align-items: flex-end; gap: 16px; background: var(--surface);
+  border-radius: var(--radius); padding: 14px 16px; margin-bottom: 12px; }
+.hero .big { font-size: 60px; font-weight: 650; line-height: 1; }
+.hero .unit { font-size: 16px; color: var(--ink-2); font-weight: 500; margin-left: 4px; }
+.hero .meta { padding-bottom: 6px; min-width: 0; }
+.hero .app { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hero .sub { color: var(--ink-2); font-size: 13px; }
+.hero.idle .big { font-size: 22px; color: var(--ink-2); font-weight: 500; }
+
+/* Ronds */
+.rings { display: grid; gap: 10px; grid-template-columns: repeat(3, 1fr); }
+@media (orientation: landscape) and (min-width: 600px) { .rings { grid-template-columns: repeat(6, 1fr); } }
+.ring { background: var(--surface); border-radius: var(--radius); padding: 10px 6px 10px;
+  text-align: center; position: relative; }
+.ring svg { width: 100%; max-width: 120px; aspect-ratio: 1; display: block; margin: 0 auto; }
+.ring .track { fill: none; stroke: var(--accent-track); stroke-width: 9; stroke-linecap: round; }
+.ring .bar { fill: none; stroke: var(--accent); stroke-width: 9; stroke-linecap: round;
+  transition: stroke-dashoffset .5s ease, stroke .3s; transform: rotate(135deg); transform-origin: 50% 50%; }
+.ring .track { transform: rotate(135deg); transform-origin: 50% 50%; }
+.ring.attention .bar { stroke: var(--warning); } .ring.attention .track { stroke: var(--warning-track); }
+.ring.critique .bar { stroke: var(--critical); } .ring.critique .track { stroke: var(--critical-track); }
+.ring .val { position: absolute; left: 0; right: 0; top: 34%; font-size: 24px; font-weight: 650; }
+.ring .val small { font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.ring .lbl { font-weight: 600; font-size: 13px; margin-top: -6px; }
+.ring .lbl .warn { display: none; }
+.ring.attention .lbl .warn, .ring.critique .lbl .warn { display: inline; }
+.ring .sub { color: var(--ink-3); font-size: 12px; min-height: 16px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.ring.na { opacity: .45; }
+
+/* Petites tuiles */
+.tiles { display: grid; gap: 10px; grid-template-columns: repeat(3, 1fr); margin-top: 10px; }
+.tile { background: var(--surface); border-radius: var(--radius); padding: 10px 12px; min-width: 0; }
+.tile .lbl { color: var(--ink-2); font-size: 12px; }
+.tile .v { font-size: 18px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .s { color: var(--ink-3); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Paysage sur un petit écran : tout tient sans faire défiler */
+@media (orientation: landscape) and (max-height: 500px) {
+  header { padding-top: 6px; }
+  main { padding-top: 8px; }
+  .hero { padding: 8px 14px; margin-bottom: 8px; }
+  .hero .big { font-size: 48px; }
+  .ring { padding: 6px 4px; }
+  .ring svg { max-width: 92px; }
+  .ring .val { font-size: 20px; }
+  .tiles { margin-top: 8px; grid-template-columns: repeat(3, 1fr); }
+  .tile { padding: 6px 12px; }
+  nav button { padding: 7px 0 6px; }
+  .alert { padding: 6px 10px; margin-bottom: 6px; }
+  .alert b, .alert span { display: inline; }
+  .alert span::before { content: " · "; }
+}
+
+/* Composants */
+.card { background: var(--surface); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 10px; }
+.card h3 { font-size: 15px; margin-bottom: 2px; }
+.card .kind { color: var(--ink-3); font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+.card h4 { color: var(--ink-2); font-size: 12px; font-weight: 600; margin: 10px 0 4px; }
+.row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0;
+  border-bottom: 1px solid var(--line); font-size: 14px; }
+.row:last-child { border-bottom: 0; }
+.row span:first-child { color: var(--ink-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.meter { height: 8px; border-radius: 4px; background: var(--accent-track); overflow: hidden; margin: 4px 0 8px; }
+.meter i { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
+.meter.attention { background: var(--warning-track); } .meter.attention i { background: var(--warning); }
+.meter.critique { background: var(--critical-track); } .meter.critique i { background: var(--critical); }
+
+/* Alertes / réglages */
+.btn { display: block; width: 100%; border: 0; border-radius: 12px; padding: 12px; margin-top: 8px;
+  font: inherit; font-weight: 600; background: var(--surface-2); color: var(--ink); }
+.btn.primary { background: var(--accent); color: #fff; }
+.note { color: var(--ink-2); font-size: 13px; margin-top: 6px; }
+.note code { background: var(--surface-2); padding: 1px 5px; border-radius: 5px; word-break: break-all; }
+.empty { color: var(--ink-3); text-align: center; padding: 18px 0; }
+h2 { font-size: 13px; color: var(--ink-2); text-transform: uppercase; letter-spacing: .6px; margin: 14px 0 8px; }
+h2:first-child { margin-top: 0; }
+
+/* Onglets */
+nav { display: flex; background: var(--surface); border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom); }
+nav button { flex: 1; border: 0; background: none; color: var(--ink-3); font: inherit; font-size: 13px;
+  padding: 10px 0 9px; position: relative; }
+nav button.on { color: var(--ink); font-weight: 600; }
+nav button.on::after { content: ""; position: absolute; left: 30%; right: 30%; top: 0; height: 3px;
+  border-radius: 0 0 3px 3px; background: var(--accent); }
+nav .badge { display: none; margin-left: 4px; background: var(--critical); color: #fff; border-radius: 9px;
+  font-size: 11px; padding: 0 6px; }
+</style>
+</head>
+<body>
+<header>
+  <span class="pill off" id="pill"><span class="dot"></span><span id="pillText">Connexion…</span></span>
+  <span class="spacer"></span>
+  <span id="clock"></span>
+  <button class="icon-btn" id="fs" aria-label="Plein écran">⛶</button>
+</header>
+
+<main>
+  <section class="view on" id="v-live">
+    <div id="banner"></div>
+    <div class="hero idle" id="hero">
+      <div><span class="big" id="fps">Pas de jeu détecté</span><span class="unit" id="fpsUnit"></span></div>
+      <div class="meta"><div class="app" id="fpsApp"></div><div class="sub" id="fpsSub"></div></div>
+    </div>
+    <div class="rings" id="rings"></div>
+    <div class="tiles">
+      <div class="tile"><div class="lbl">Ventilateur GPU</div><div class="v" id="t-fan">–</div><div class="s" id="t-fan2"></div></div>
+      <div class="tile"><div class="lbl">Réseau</div><div class="v" id="t-net">–</div><div class="s" id="t-net2"></div></div>
+      <div class="tile"><div class="lbl">Puissance</div><div class="v" id="t-pow">–</div><div class="s">CPU + GPU</div></div>
+    </div>
+  </section>
+
+  <section class="view" id="v-comp"><div id="comp"></div></section>
+
+  <section class="view" id="v-alert">
+    <h2>En cours</h2><div id="aNow"></div>
+    <h2>Être prévenu sur le téléphone</h2>
+    <div class="card">
+      <div id="soundState" class="note">Son et vibration : désactivés.</div>
+      <button class="btn" id="soundBtn">Activer le son et la vibration des alertes</button>
+      <div class="note" style="margin-top:12px">Pour être prévenu même quand cette page n'est pas
+        affichée, active les notifications push. Elles passent par <b>ntfy</b>, un service gratuit et open
+        source : seuls le titre et le texte de l'alerte sont envoyés.</div>
+      <div id="ntfyBox"></div>
+    </div>
+    <h2>Historique</h2><div id="aHist"></div>
+  </section>
+</main>
+
+<nav>
+  <button class="on" data-view="v-live">En direct</button>
+  <button data-view="v-comp">Composants</button>
+  <button data-view="v-alert">Alertes<span class="badge" id="badge"></span></button>
+</nav>
+
+<script>
+"use strict";
+var $ = function (id) { return document.getElementById(id); };
+var state = null, lastOk = 0, soundOn = false, known = {}, audio = null;
+var C = 2 * Math.PI * 42, ARC = 0.75; // anneau ouvert en bas (270°)
+
+var RINGS = [
+  { id: "cpu", lbl: "CPU", unit: "%", max: 100, sub: function (s) { return s.cpu_freq ? dec(s.cpu_freq / 1000) + " GHz" : ""; } },
+  { id: "cpu_temp", lbl: "Temp. CPU", unit: "°", max: 100, seuil: "cpu_temp", sub: function (s) { return s.cpu_puissance ? Math.round(s.cpu_puissance) + " W" : ""; } },
+  { id: "gpu", lbl: "GPU", unit: "%", max: 100, sub: function (s) { return s.gpu_freq ? Math.round(s.gpu_freq) + " MHz" : ""; } },
+  { id: "gpu_temp", lbl: "Temp. GPU", unit: "°", max: 100, seuil: "gpu_temp", sub: function (s) { return s.gpu_puissance ? Math.round(s.gpu_puissance) + " W" : ""; } },
+  { id: "ram", lbl: "RAM", unit: "%", max: 100, seuil: "ram", sub: function (s) { return dec(s.ram_util_go) + " / " + dec(s.ram_total_go) + " Go"; } },
+  { id: "vram", lbl: "VRAM", unit: "%", max: 100, sub: function (s) { return s.vram_go ? dec(s.vram_go[0]) + " / " + (s.vram_go[1] ? dec(s.vram_go[1]) : "?") + " Go" : ""; } }
+];
+
+function buildRings() {
+  var html = "";
+  RINGS.forEach(function (r) {
+    html += '<div class="ring na" id="r-' + r.id + '">' +
+      '<svg viewBox="0 0 100 100" aria-hidden="true">' +
+      '<circle class="track" cx="50" cy="50" r="42" stroke-dasharray="' + C * ARC + ' ' + C + '"/>' +
+      '<circle class="bar" cx="50" cy="50" r="42" stroke-dasharray="' + C * ARC + ' ' + C + '" stroke-dashoffset="' + C * ARC + '"/>' +
+      '</svg><div class="val">–</div>' +
+      '<div class="lbl"><span class="warn">⚠ </span>' + r.lbl + '</div><div class="sub"></div></div>';
+  });
+  $("rings").innerHTML = html;
+}
+
+function level(v, pair) {
+  if (v == null || !pair) return "";
+  return v >= pair[1] ? "critique" : v >= pair[0] ? "attention" : "";
+}
+
+function setRing(r, s) {
+  var el = $("r-" + r.id), v = s[r.id];
+  var ok = typeof v === "number";
+  el.classList.toggle("na", !ok);
+  var lv = ok && r.seuil && s.seuils ? level(v, s.seuils[r.seuil]) : "";
+  el.classList.toggle("attention", lv === "attention");
+  el.classList.toggle("critique", lv === "critique");
+  var frac = ok ? Math.max(0, Math.min(1, v / r.max)) : 0;
+  el.querySelector(".bar").setAttribute("stroke-dashoffset", C * ARC * (1 - frac));
+  el.querySelector(".val").innerHTML = ok ? Math.round(v) + "<small>" + r.unit + "</small>" : "–";
+  el.querySelector(".sub").textContent = ok ? r.sub(s) : (r.id.indexOf("temp") > 0 ? "capteur absent" : "");
+  el.setAttribute("aria-label", r.lbl + " " + (ok ? Math.round(v) + r.unit : "indisponible") + (lv ? ", " + lv : ""));
+}
+
+function dec(v) { return (Math.round(v * 10) / 10).toLocaleString("fr-FR"); }
+function rate(b) {
+  if (b == null) return "–";
+  if (b > 1e6) return dec(b / 1e6) + " Mo/s";
+  if (b > 1e3) return Math.round(b / 1e3) + " Ko/s";
+  return Math.round(b) + " o/s";
+}
+function esc(t) { return String(t == null ? "" : t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+function hhmm(t) { var d = new Date(t * 1000); return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }); }
+var ICON = { critique: "⛔", attention: "⚠️", info: "ℹ️" };
+
+function alertHtml(a, withTime) {
+  return '<div class="alert ' + a.niveau + '"><span class="ic">' + ICON[a.niveau] + '</span><div><b>' +
+    esc(a.titre) + '</b><span>' + esc(a.detail) + '</span></div>' +
+    (withTime ? '<time>' + hhmm(a.debut) + (a.fin ? " → " + hhmm(a.fin) : "") + '</time>' : "") + '</div>';
+}
+
+function renderLive(s) {
+  var f = s.fps, hero = $("hero");
+  hero.classList.toggle("idle", !f);
+  if (f) {
+    $("fps").textContent = f.fps; $("fpsUnit").textContent = "FPS";
+    $("fpsApp").textContent = f.app;
+    $("fpsSub").textContent = "1 % bas : " + f.low1 + " FPS · " + dec(f.frametime) + " ms par image";
+  } else {
+    $("fps").textContent = "Pas de jeu détecté"; $("fpsUnit").textContent = "";
+    $("fpsApp").textContent = "";
+    $("fpsSub").textContent = s.fps_statut === "actif" ? "Les FPS s'affichent dès qu'un jeu tourne." : "Mesure des FPS : " + s.fps_statut;
+  }
+  RINGS.forEach(function (r) { setRing(r, s); });
+  $("t-fan").textContent = s.gpu_fan_rpm != null ? Math.round(s.gpu_fan_rpm).toLocaleString("fr-FR") + " tr/min" : "–";
+  $("t-fan2").textContent = s.gpu_fan_pct != null ? "réglé à " + Math.round(s.gpu_fan_pct) + " %" : "";
+  $("t-net").textContent = "↓ " + rate(s.net_down);
+  $("t-net2").textContent = "↑ " + rate(s.net_up);
+  var p = (s.cpu_puissance || 0) + (s.gpu_puissance || 0);
+  $("t-pow").textContent = p ? Math.round(p) + " W" : "–";
+  var shown = (s.alertes || []).filter(function (a) { return a.niveau !== "info" || !s.lhm_ok; });
+  $("banner").style.display = shown.length ? "block" : "none";
+  $("banner").innerHTML = shown.map(function (a) { return alertHtml(a, false); }).join("");
+}
+
+var KIND = { cpu: "Processeur", gpu: "Carte graphique", ram: "Mémoire", disque: "Stockage", carte_mere: "Carte mère", puce: "Contrôleur carte mère", reseau: "Réseau", autre: "Autre" };
+var GROUP = [["temp", "Températures", "°C"], ["charge", "Charges", "%"], ["ventilo", "Ventilateurs", "tr/min"], ["controle", "Commande ventilateurs", "%"], ["freq", "Fréquences", "MHz"], ["puissance", "Puissances", "W"], ["donnees", "Mémoire", ""], ["tension", "Tensions", "V"]];
+
+function fmt(v, unit) {
+  var n = Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 10) / 10;
+  return n.toLocaleString("fr-FR") + " " + (unit || "");
+}
+
+function renderComp(s) {
+  var sys = s.systeme || {}, html = '<div class="card"><div class="kind">Système</div><h3>' + esc(sys.os) + '</h3>';
+  html += row("Processeur", s.cpu_nom || sys.cpu || "–") + row("Cœurs / threads", (sys.coeurs || "?") + " / " + (sys.threads || "?"));
+  html += row("Carte graphique", s.gpu_nom || "–") + row("Mémoire", dec(s.ram_total_go || sys.ram_go) + " Go");
+  var up = s.uptime || 0;
+  html += row("Allumé depuis", Math.floor(up / 86400) ? Math.floor(up / 86400) + " j " + Math.floor(up % 86400 / 3600) + " h" : Math.floor(up / 3600) + " h " + Math.floor(up % 3600 / 60) + " min");
+  html += '<h4>Disques</h4>';
+  (s.disques || []).forEach(function (d) {
+    var lv = s.seuils ? level(d.pct, s.seuils.disque_plein) : "";
+    html += row(d.nom, Math.round(d.libre_go) + " Go libres sur " + Math.round(d.total_go)) +
+      '<div class="meter ' + lv + '"><i style="width:' + d.pct + '%"></i></div>';
+  });
+  html += "</div>";
+  if (!s.lhm_ok) html += '<div class="card"><h3>Détails indisponibles</h3><div class="note">Lance LibreHardwareMonitor <b>en administrateur</b> et active <b>Options › Remote Web Server › Run</b>.</div></div>';
+  var ORDER = ["cpu", "gpu", "ram", "disque", "carte_mere", "puce", "reseau", "autre"];
+  (s.composants || []).slice().sort(function (a, b) { return ORDER.indexOf(a.type) - ORDER.indexOf(b.type); }).forEach(function (h) {
+    html += '<div class="card"><div class="kind">' + (KIND[h.type] || "Autre") + '</div><h3>' + esc(h.nom) + '</h3>';
+    GROUP.forEach(function (g) {
+      var list = h.capteurs.filter(function (c) { return c.groupe === g[0]; });
+      if (!list.length) return;
+      html += "<h4>" + g[1] + "</h4>";
+      list.forEach(function (c) { html += row(c.nom, fmt(c.valeur, c.unite || g[2]) + (c.max != null && g[0] === "temp" ? '  <span style="color:var(--ink-3)">max ' + fmt(c.max, "") + "</span>" : "")); });
+    });
+    html += "</div>";
+  });
+  $("comp").innerHTML = html;
+}
+function row(a, b) { return '<div class="row"><span>' + esc(a) + "</span><span>" + (/<span/.test(b) ? b : esc(b)) + "</span></div>"; }
+
+function renderAlerts(s) {
+  var now = s.alertes || [];
+  $("aNow").innerHTML = now.length ? now.map(function (a) { return alertHtml(a, true); }).join("") : '<div class="empty">✓ Aucun problème détecté</div>';
+  var hist = (s.historique || []).slice(0, 30);
+  $("aHist").innerHTML = hist.length ? hist.map(function (a) { return alertHtml(a, true); }).join("") : '<div class="empty">Rien pour l’instant</div>';
+  var serious = now.filter(function (a) { return a.niveau !== "info"; }).length;
+  $("badge").style.display = serious ? "inline" : "none"; $("badge").textContent = serious;
+}
+
+function renderPill(s) {
+  var p = $("pill"), now = (s && s.alertes) || [];
+  p.className = "pill";
+  if (!s) { p.classList.add("critique"); $("pillText").textContent = "PC injoignable"; return; }
+  var crit = now.filter(function (a) { return a.niveau === "critique"; }).length;
+  var warn = now.filter(function (a) { return a.niveau === "attention"; }).length;
+  if (crit) { p.classList.add("critique"); $("pillText").textContent = "⛔ " + crit + " problème" + (crit > 1 ? "s" : "") + " critique" + (crit > 1 ? "s" : ""); }
+  else if (warn) { p.classList.add("attention"); $("pillText").textContent = "⚠ " + warn + " alerte" + (warn > 1 ? "s" : ""); }
+  else $("pillText").textContent = "✓ Tout va bien";
+}
+
+// Son et vibration : le navigateur exige un premier toucher pour les autoriser.
+function beep(urgent) {
+  if (!soundOn) return;
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.25, urgent ? 0.5 : -1].forEach(function (t) {
+      if (t < 0) return;
+      var o = audio.createOscillator(), g = audio.createGain();
+      o.frequency.value = urgent ? 880 : 660; o.connect(g); g.connect(audio.destination);
+      g.gain.setValueAtTime(0.25, audio.currentTime + t); g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + t + 0.2);
+      o.start(audio.currentTime + t); o.stop(audio.currentTime + t + 0.21);
+    });
+  } catch (e) {}
+  if (navigator.vibrate) navigator.vibrate(urgent ? [300, 150, 300, 150, 300] : [200, 100, 200]);
+}
+
+function notifyNew(s) {
+  var seen = {};
+  (s.alertes || []).forEach(function (a) {
+    var k = a.id + ":" + a.niveau; seen[k] = true;
+    if (!known[k] && a.niveau !== "info") beep(a.niveau === "critique");
+  });
+  known = seen;
+}
+
+function tick() {
+  fetch("/api/etat", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (s) {
+    if (!s || !s.t) return;
+    state = s; lastOk = Date.now();
+    notifyNew(s); renderPill(s); renderLive(s); renderAlerts(s);
+    if ($("v-comp").classList.contains("on")) renderComp(s);
+  }).catch(function () {
+    if (Date.now() - lastOk > 5000) {
+      if (state) beep(true);
+      state = null; renderPill(null);
+      $("banner").style.display = "block";
+      $("banner").innerHTML = alertHtml({ niveau: "critique", titre: "PC injoignable", detail: "Le moniteur ne répond plus : PC éteint, planté, ou câble débranché." });
+    }
+  });
+}
+
+// Notifications push (ntfy)
+function ntfyRender(n) {
+  var box = $("ntfyBox");
+  if (n.actif) {
+    var url = n.serveur.replace(/\/$/, "") + "/" + n.sujet;
+    box.innerHTML = '<div class="note">✓ Activées. Sur le téléphone : installe l’app <b>ntfy</b> (Play Store), touche <b>+</b> et abonne-toi au sujet :<br><code>' + esc(n.sujet) + '</code></div>' +
+      '<button class="btn" id="ntfyTest">Envoyer une notification de test</button>' +
+      '<button class="btn" id="ntfyOff">Désactiver les notifications push</button>';
+    $("ntfyTest").onclick = function () { fetch("/api/ntfy/test", { method: "POST" }); };
+    $("ntfyOff").onclick = function () { fetch("/api/ntfy/desactiver", { method: "POST" }).then(function (r) { return r.json(); }).then(ntfyRender); };
+  } else {
+    box.innerHTML = '<button class="btn primary" id="ntfyOn">Activer les notifications push</button>';
+    $("ntfyOn").onclick = function () { fetch("/api/ntfy/activer", { method: "POST" }).then(function (r) { return r.json(); }).then(ntfyRender); };
+  }
+}
+
+// Garder l'écran allumé (marche par le câble USB : localhost est une origine sûre)
+var wake = null;
+function keepAwake() {
+  if (!navigator.wakeLock || wake) return;
+  navigator.wakeLock.request("screen").then(function (w) { wake = w; w.addEventListener("release", function () { wake = null; }); }).catch(function () {});
+}
+document.addEventListener("visibilitychange", function () { if (!document.hidden) keepAwake(); });
+
+document.querySelectorAll("nav button").forEach(function (b) {
+  b.onclick = function () {
+    document.querySelectorAll("nav button").forEach(function (x) { x.classList.toggle("on", x === b); });
+    document.querySelectorAll(".view").forEach(function (v) { v.classList.toggle("on", v.id === b.dataset.view); });
+    if (state && b.dataset.view === "v-comp") renderComp(state);
+    document.querySelector("main").scrollTop = 0;
+  };
+});
+$("soundBtn").onclick = function () {
+  soundOn = !soundOn;
+  try { localStorage.setItem("son", soundOn ? "1" : "0"); } catch (e) {}
+  $("soundState").textContent = "Son et vibration : " + (soundOn ? "activés." : "désactivés.");
+  $("soundBtn").textContent = soundOn ? "Désactiver le son et la vibration" : "Activer le son et la vibration des alertes";
+  if (soundOn) beep(false);
+};
+$("fs").onclick = function () {
+  var d = document.documentElement;
+  if (document.fullscreenElement) document.exitFullscreen(); else if (d.requestFullscreen) d.requestFullscreen();
+  keepAwake();
+};
+document.addEventListener("click", keepAwake, { once: true });
+
+try { soundOn = localStorage.getItem("son") === "1"; } catch (e) {}
+if (soundOn) { $("soundState").textContent = "Son et vibration : activés."; $("soundBtn").textContent = "Désactiver le son et la vibration"; }
+
+function clock() { $("clock").textContent = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }); }
+buildRings(); clock(); tick(); keepAwake();
+setInterval(tick, 1000); setInterval(clock, 10000);
+fetch("/api/ntfy").then(function (r) { return r.json(); }).then(ntfyRender).catch(function () {});
+</script>
+</body>
+</html>

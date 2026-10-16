@@ -106,7 +106,7 @@ public class MainActivity extends Activity {
                 toast(n + " apps fermées");
             }
         });
-        button("Quitter le mode Duo", CARD, new View.OnClickListener() {
+        button("Sortir de Duo", RED, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 askPinThenExit();
@@ -120,15 +120,39 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this)
                 .setTitle("Code PIN")
                 .setView(input)
-                .setPositiveButton("Quitter", new DialogInterface.OnClickListener() {
+                .setPositiveButton("Valider", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int w) {
                         if (input.getText().toString().equals(Duo.prefs(MainActivity.this).getString("pin", ""))) {
-                            Duo.exit(MainActivity.this);
-                            showSetup();
+                            chooseExit();
                         } else {
                             toast("Code incorrect");
                         }
+                    }
+                })
+                .setNegativeButton("Annuler", null)
+                .show();
+    }
+
+    private void chooseExit() {
+        new AlertDialog.Builder(this)
+                .setTitle("Sortir de Duo")
+                .setMessage("Sortir seulement : le téléphone est déverrouillé, tu pourras relancer Duo "
+                        + "d'un toucher.\n\nRendre le téléphone normal : tout est remis comme avant, "
+                        + "Duo perd ses droits. Pour le relancer, il faudra refaire la commande adb.")
+                .setPositiveButton("Rendre normal", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        Duo.makeNormal(MainActivity.this);
+                        toast("Téléphone remis à la normale");
+                        showSetup();
+                    }
+                })
+                .setNeutralButton("Sortir seulement", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int w) {
+                        Duo.exit(MainActivity.this);
+                        showSetup();
                     }
                 })
                 .setNegativeButton("Annuler", null)
@@ -212,7 +236,7 @@ public class MainActivity extends Activity {
         });
 
         if (owner) {
-            button("Retirer les droits de propriétaire (avant de désinstaller Duo)", CARD,
+            button("Rendre le téléphone normal (retire les droits de Duo)", RED,
                     new View.OnClickListener() {
                         @Override
                         public void onClick(View v) {
@@ -266,14 +290,14 @@ public class MainActivity extends Activity {
 
     private void confirmRemoveOwner() {
         new AlertDialog.Builder(this)
-                .setTitle("Retirer les droits ?")
-                .setMessage("Duo redevient une app normale. Pour reverrouiller plus tard, "
-                        + "il faudra relancer la commande adb depuis le PC.")
-                .setPositiveButton("Retirer", new DialogInterface.OnClickListener() {
+                .setTitle("Rendre le téléphone normal ?")
+                .setMessage("Duo redevient une app ordinaire, que tu peux désinstaller. Pour "
+                        + "reverrouiller plus tard, il faudra relancer la commande adb depuis le PC.")
+                .setPositiveButton("Rendre normal", new DialogInterface.OnClickListener() {
                     @Override
-                    @SuppressWarnings("deprecation")
                     public void onClick(DialogInterface d, int w) {
-                        Duo.dpm(MainActivity.this).clearDeviceOwnerApp(getPackageName());
+                        Duo.makeNormal(MainActivity.this);
+                        toast("Téléphone remis à la normale");
                         showSetup();
                     }
                 })

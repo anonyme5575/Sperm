@@ -14,7 +14,7 @@ Prévu pour Android 9 et plus. Pensé pour un Redmi 9AT (Android 10, MIUI 12, 2 
 |---|---|
 | Toucher le bouton rond | Bascule vers l'autre app |
 | Glisser le bouton rond | Le déplace ; il se colle au bord le plus proche et reste visible en portrait comme en paysage |
-| Appui long (0,7 s) sur le bouton rond | Retour à l'écran Duo : les deux apps, « Fermer les apps en arrière-plan », « Quitter le mode Duo » (PIN demandé) |
+| Appui long (0,7 s) sur le bouton rond | Retour à l'écran Duo : les deux apps, « Fermer les apps en arrière-plan », « Sortir de Duo » (PIN demandé) |
 
 Après un redémarrage, le téléphone revient directement sur l'écran Duo, toujours verrouillé.
 
@@ -76,7 +76,14 @@ adb shell am broadcast -n com.duo.kiosk/.RescueReceiver
 adb shell am broadcast -n com.duo.kiosk/.RescueReceiver --ez unowner true
 ```
 
-Pour désinstaller Duo : quitte le mode Duo, touche **Retirer les droits de propriétaire**, puis désinstalle normalement.
+## Sortir de Duo
+
+Appui long sur le bouton rond, **Sortir de Duo**, puis le PIN. Deux choix :
+
+- **Sortir seulement** : le téléphone est déverrouillé et les apps masquées reviennent. Duo garde ses droits : tu peux relancer le mode d'un toucher.
+- **Rendre le téléphone normal** : tout est remis comme avant (apps réaffichées, verrouillage levé, écran qui ne reste plus allumé, accueil MIUI) et Duo perd ses droits de propriétaire. Duo devient une app ordinaire, que tu peux désinstaller. Pour le reverrouiller, il faudra refaire la commande `adb` du PC.
+
+Hors mode Duo, le même bouton **Rendre le téléphone normal** est dans l'écran de réglages de Duo.
 
 ## Compiler
 

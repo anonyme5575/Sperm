@@ -69,6 +69,17 @@ final class Duo {
         return prefs(c).getString(n == 1 ? "appA" : "appB", null);
     }
 
+    static ComponentName homeAlias(Context c) {
+        return new ComponentName(c.getPackageName(), c.getPackageName() + ".HomeAlias");
+    }
+
+    private static void setHome(Context c, boolean on) {
+        c.getPackageManager().setComponentEnabledSetting(homeAlias(c), on
+                        ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                        : PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP);
+    }
+
     static boolean inLockTask(Context c) {
         ActivityManager am = (ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE);
         return am.getLockTaskModeState() != ActivityManager.LOCK_TASK_MODE_NONE;
@@ -102,6 +113,7 @@ final class Duo {
     static void enter(Activity a) {
         SharedPreferences p = prefs(a);
         String self = a.getPackageName(), appA = app(a, 1), appB = app(a, 2);
+        setHome(a, true);
         if (isOwner(a)) {
             DevicePolicyManager dpm = dpm(a);
             ComponentName adm = admin(a);
@@ -113,7 +125,7 @@ final class Duo {
             IntentFilter home = new IntentFilter(Intent.ACTION_MAIN);
             home.addCategory(Intent.CATEGORY_HOME);
             home.addCategory(Intent.CATEGORY_DEFAULT);
-            dpm.addPersistentPreferredActivity(adm, home, new ComponentName(a, MainActivity.class));
+            dpm.addPersistentPreferredActivity(adm, home, homeAlias(a));
             if (p.getBoolean("stayOn", true)) {
                 dpm.setGlobalSetting(adm, Settings.Global.STAY_ON_WHILE_PLUGGED_IN, "7");
                 p.edit().putBoolean("stayOnApplied", true).apply();
@@ -152,7 +164,18 @@ final class Duo {
             }
             unhideAll(a);
         }
+        setHome(a, false);
         p.edit().putBoolean("active", false).apply();
+    }
+
+    /**
+     * Rend le téléphone normal : sortie du mode Duo, puis retrait des droits de propriétaire.
+     * Duo redevient une app ordinaire, qu'on peut désinstaller.
+     */
+    @SuppressWarnings("deprecation")
+    static void makeNormal(Activity a) {
+        exit(a);
+        if (isOwner(a)) dpm(a).clearDeviceOwnerApp(a.getPackageName());
     }
 
     /** Masque les autres apps : elles ne peuvent plus tourner du tout. Réversible. */

@@ -29,30 +29,73 @@ public static class Program
     private static NotifyIcon? _tray;
     private static Control? _ui; // pour toucher l'icône depuis le fil des mesures
 
+    public static readonly string LogFile = System.IO.Path.Combine(Settings.DataDir, "erreurs.log");
+
+    public static void Log(string message)
+    {
+        try
+        {
+            System.IO.Directory.CreateDirectory(Settings.DataDir);
+            System.IO.File.AppendAllText(LogFile, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {message}{Environment.NewLine}");
+        }
+        catch { }
+    }
+
+    private static void Fatal(string message, bool show)
+    {
+        Log(message);
+        if (show)
+            MessageBox.Show(message + $"\n\nDétails : {LogFile}", "Moniteur PC", MessageBoxButtons.OK, MessageBoxIcon.Error);
+    }
+
     [STAThread]
     public static int Main(string[] args)
     {
         // --test : démarrage sans fenêtre ni question (utilisé par la vérification automatique).
+        // --auto : lancé par Windows à l'ouverture de session, sans message de bienvenue.
         bool test = args.Contains("--test");
-        using var single = new Mutex(true, @"Global\MoniteurPC", out bool first);
-        if (!first) return 0;
-
+        bool auto = args.Contains("--auto");
         ApplicationConfiguration.Initialize();
-        var settings = Settings.Load();
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+        Application.ThreadException += (_, e) => Fatal("Erreur : " + e.Exception, !test);
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => Fatal("Erreur : " + e.ExceptionObject, !test);
 
+        using var single = new Mutex(true, @"Global\MoniteurPC", out bool first);
+        if (!first)
+        {
+            if (!test && !auto)
+                MessageBox.Show("Moniteur PC tourne déjà.\n\nSon icône est près de l'horloge, en bas à droite " +
+                                "(clique sur la petite flèche ^ si tu ne la vois pas).",
+                    "Moniteur PC", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return 0;
+        }
+
+        var settings = Settings.Load();
         if (!test)
         {
-            Setup.EnsureDriver(settings, interactive: true);
-            Setup.EnsureFirewall(settings);
-            if (settings.AutoStart && !Setup.AutoStartInstalled()) Setup.SetAutoStart(true);
+            // Une erreur ici ne doit pas empêcher le moniteur de démarrer.
+            try { Setup.EnsureDriver(settings, interactive: true); } catch (Exception e) { Log("Pilote : " + e); }
+            try { Setup.EnsureFirewall(settings); } catch (Exception e) { Log("Pare-feu : " + e); }
+            // Toujours réécrite : elle peut encore pointer vers un ancien exe (ou l'ancienne version Python).
+            try { if (settings.AutoStart) Setup.SetAutoStart(true); } catch (Exception e) { Log("Démarrage auto : " + e); }
         }
 
         var tracker = new FpsTracker();
         var presentMon = new PresentMonRunner(tracker);
-        presentMon.Start();
         var alerts = new AlertEngine(a => Notify(a));
         var server = new Server(settings.Port, () => { lock (Lock) return _state; });
-        server.Start();
+        try
+        {
+            server.Start();
+        }
+        catch (Exception e)
+        {
+            Fatal($"Impossible d'ouvrir le port {settings.Port} : {e.Message}\n\n" +
+                  "Un autre programme l'utilise, probablement l'ancienne version de Moniteur PC. " +
+                  "Ferme-la (Gestionnaire des tâches > MoniteurPC > Fin de tâche) ou redémarre le PC, puis relance.", !test);
+            return 1;
+        }
+        presentMon.Start();
 
         var sampler = new Thread(() => Sample(settings, tracker, alerts)) { IsBackground = true, Name = "Mesures" };
         sampler.Start();
@@ -74,6 +117,12 @@ public static class Program
         };
         _tray.ShowBalloonTip(5000, "Moniteur PC",
             $"Prêt. Sur le téléphone, ouvre l'app Moniteur PC (ou http://{LanIp()}:{settings.Port}).", ToolTipIcon.Info);
+        if (!auto)
+            MessageBox.Show("Moniteur PC est lancé et tourne en arrière-plan.\n\n" +
+                            "• Son icône est près de l'horloge (petite flèche ^ si tu ne la vois pas) : clic droit pour le menu.\n" +
+                            $"• Sur le téléphone : ouvre l'app Moniteur PC, ou l'adresse http://{LanIp()}:{settings.Port}\n" +
+                            "• Il se relancera tout seul à chaque démarrage de Windows.",
+                "Moniteur PC", MessageBoxButtons.OK, MessageBoxIcon.Information);
         Application.Run();
         return 0;
     }

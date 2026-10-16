@@ -79,11 +79,12 @@ public static class Setup
         }
         string exe = (Environment.ProcessPath ?? "").Replace("'", "''");
         string ps =
-            $"$a = New-ScheduledTaskAction -Execute '{exe}'; " +
+            $"$a = New-ScheduledTaskAction -Execute '{exe}' -Argument '--auto'; " +
             "$t = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME; " +
             "$p = New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest -LogonType Interactive; " +
             "$s = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries; " +
             $"Register-ScheduledTask -TaskName {TaskName} -Action $a -Trigger $t -Principal $p -Settings $s -Force | Out-Null";
-        Run("powershell", $"-NoProfile -NonInteractive -Command \"{ps.Replace("\"", "\\\"")}\"");
+        var r = Run("powershell", $"-NoProfile -NonInteractive -Command \"{ps.Replace("\"", "\\\"")}\"");
+        if (r.Code != 0) Program.Log("Tâche planifiée : " + r.Output);
     }
 }

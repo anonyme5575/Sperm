@@ -1,8 +1,0 @@
-{
-  "name": "Moniteur PC",
-  "short_name": "Moniteur PC",
-  "start_url": "/",
-  "display": "fullscreen",
-  "background_color": "#121211",
-  "theme_color": "#121211"
-}

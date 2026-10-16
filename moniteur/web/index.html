@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#121211">
 <meta name="mobile-web-app-capable" content="yes">
-<link rel="manifest" href="manifest.webmanifest">
 <title>Moniteur PC</title>
 <style>
 :root {
@@ -169,10 +168,8 @@ nav .badge { display: none; margin-left: 4px; background: var(--critical); color
     <div class="card">
       <div id="soundState" class="note">Son et vibration : désactivés.</div>
       <button class="btn" id="soundBtn">Activer le son et la vibration des alertes</button>
-      <div class="note" style="margin-top:12px">Pour être prévenu même quand cette page n'est pas
-        affichée, active les notifications push. Elles passent par <b>ntfy</b>, un service gratuit et open
-        source : seuls le titre et le texte de l'alerte sont envoyés.</div>
-      <div id="ntfyBox"></div>
+      <div class="note" id="pushNote" style="margin-top:12px">Pour recevoir les alertes même quand cette
+        page n'est pas affichée, installe l'app <b>Moniteur PC</b> sur le téléphone.</div>
     </div>
     <h2>Historique</h2><div id="aHist"></div>
   </section>
@@ -370,22 +367,6 @@ function tick() {
   });
 }
 
-// Notifications push (ntfy)
-function ntfyRender(n) {
-  var box = $("ntfyBox");
-  if (n.actif) {
-    var url = n.serveur.replace(/\/$/, "") + "/" + n.sujet;
-    box.innerHTML = '<div class="note">✓ Activées. Sur le téléphone : installe l’app <b>ntfy</b> (Play Store), touche <b>+</b> et abonne-toi au sujet :<br><code>' + esc(n.sujet) + '</code></div>' +
-      '<button class="btn" id="ntfyTest">Envoyer une notification de test</button>' +
-      '<button class="btn" id="ntfyOff">Désactiver les notifications push</button>';
-    $("ntfyTest").onclick = function () { fetch("/api/ntfy/test", { method: "POST" }); };
-    $("ntfyOff").onclick = function () { fetch("/api/ntfy/desactiver", { method: "POST" }).then(function (r) { return r.json(); }).then(ntfyRender); };
-  } else {
-    box.innerHTML = '<button class="btn primary" id="ntfyOn">Activer les notifications push</button>';
-    $("ntfyOn").onclick = function () { fetch("/api/ntfy/activer", { method: "POST" }).then(function (r) { return r.json(); }).then(ntfyRender); };
-  }
-}
-
 // Garder l'écran allumé (marche par le câble USB : localhost est une origine sûre)
 var wake = null;
 function keepAwake() {
@@ -416,13 +397,18 @@ $("fs").onclick = function () {
 };
 document.addEventListener("click", keepAwake, { once: true });
 
-try { soundOn = localStorage.getItem("son") === "1"; } catch (e) {}
+var IN_APP = navigator.userAgent.indexOf("MoniteurPCApp") >= 0;
+try { var saved = localStorage.getItem("son"); soundOn = saved === null ? IN_APP : saved === "1"; } catch (e) { soundOn = IN_APP; }
 if (soundOn) { $("soundState").textContent = "Son et vibration : activés."; $("soundBtn").textContent = "Désactiver le son et la vibration"; }
 
 function clock() { $("clock").textContent = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }); }
 buildRings(); clock(); tick(); keepAwake();
 setInterval(tick, 1000); setInterval(clock, 10000);
-fetch("/api/ntfy").then(function (r) { return r.json(); }).then(ntfyRender).catch(function () {});
+// Dans l'app Android : déjà en plein écran, notifications gérées par l'app.
+if (IN_APP) {
+  $("fs").style.display = "none";
+  $("pushNote").innerHTML = "✓ L'app te prévient par une notification Android, même écran éteint ou app fermée.";
+}
 </script>
 </body>
 </html>

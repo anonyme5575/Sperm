@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>MoniteurPC</RootNamespace>
+    <AssemblyName>MoniteurPC</AssemblyName>
+    <Version>2.0</Version>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Un seul exe, sans .NET à installer. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\web\index.html" LogicalName="web.index.html" />
+    <!-- Téléchargés par le workflow avant la compilation (voir .github/workflows/moniteur.yml). -->
+    <EmbeddedResource Include="outils\PresentMon.exe" LogicalName="outils.PresentMon.exe" Condition="Exists('outils\PresentMon.exe')" />
+    <EmbeddedResource Include="outils\PawnIO_setup.exe" LogicalName="outils.PawnIO_setup.exe" Condition="Exists('outils\PawnIO_setup.exe')" />
+  </ItemGroup>
+
+</Project>

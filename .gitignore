@@ -1,5 +1,8 @@
 android/.tools/
 android/build/
-moniteur/moniteur-config.json
-moniteur/PresentMon*.exe
+moniteur/android/build/
+moniteur/pc/outils/
+moniteur/**/bin/
+moniteur/**/obj/
+dist/moniteur-pc.apk
 __pycache__/

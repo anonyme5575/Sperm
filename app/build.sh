@@ -7,8 +7,8 @@ A="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(dirname "$A")"
 T="$A/.tools"
 OUT="$A/build"
-VERSION_CODE="${VERSION_CODE:-1}"
-VERSION_NAME="${VERSION_NAME:-1.0}"
+VERSION_CODE="${VERSION_CODE:-2}"
+VERSION_NAME="${VERSION_NAME:-1.1}"
 
 [ -x "$T/aapt2" ] && [ -s "$T/shizuku-api.jar" ] || "$A/fetch-tools.sh"
 

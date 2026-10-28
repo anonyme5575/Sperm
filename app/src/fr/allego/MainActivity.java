@@ -59,7 +59,7 @@ public class MainActivity extends Activity {
     private final List<App> toutes = new ArrayList<>();
     private final List<App> visibles = new ArrayList<>();
     private int onglet = ONGLET_CONSEILLEES;
-    private boolean occupe;
+    private boolean occupe, actif;
 
     private static final int BLEU = 0xFF1E63E9, VERT = 0xFF2E7D32;
     private TextView etat, numero, titreEtape, diag;
@@ -178,12 +178,14 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        actif = true;
         majEtat();
         charger();
     }
 
     @Override
     protected void onPause() {
+        actif = false;
         ui.removeCallbacks(verifier);
         super.onPause();
     }
@@ -224,7 +226,7 @@ public class MainActivity extends Activity {
         ui.post(() -> {
             boolean ok = pret();
             ui.removeCallbacks(verifier);
-            if (!ok && hasWindowFocus()) ui.postDelayed(verifier, 1500);
+            if (!ok && actif) ui.postDelayed(verifier, 1500);
             boolean lie = false, autorise = false;
             try { lie = Shizuku.pingBinder(); autorise = lie && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED; } catch (Throwable t) { }
             diag.setText("Vérification automatique : Shizuku installé " + (installee(SHIZUKU) ? "✓" : "✗")

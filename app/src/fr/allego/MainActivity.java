@@ -226,12 +226,18 @@ public class MainActivity extends Activity {
     }
 
     /** Bouton gris qui ouvre directement la bonne page des Paramètres. */
-    private void raccourci(String texte, String page) {
+    private void raccourci(String texte, String page, String cle) {
         reglages.setVisibility(View.VISIBLE);
         reglages.setText(texte);
         reglages.setOnClickListener(v -> {
             try {
-                startActivity(new Intent(page));
+                // Fait défiler les Paramètres jusqu'au réglage et le met en surbrillance.
+                Intent i = new Intent(page);
+                Bundle args = new Bundle();
+                args.putString(":settings:fragment_args_key", cle);
+                i.putExtra(":settings:fragment_args_key", cle);
+                i.putExtra(":settings:show_fragment_args", args);
+                startActivity(i);
             } catch (Exception e) {
                 startActivity(new Intent(Settings.ACTION_SETTINGS));
             }
@@ -281,12 +287,12 @@ public class MainActivity extends Activity {
                             + "suivre est dans Shizuku, partie « Démarrer en se connectant à un ordinateur ».\n\n"
                             + "À refaire après chaque redémarrage du téléphone.",
                             "Ouvrir Shizuku", ouvrirShizuku);
-                    raccourci("Ouvrir « À propos du téléphone »", Settings.ACTION_DEVICE_INFO_SETTINGS);
+                    raccourci("Ouvrir « À propos du téléphone »", Settings.ACTION_DEVICE_INFO_SETTINGS, "build_number");
                 } else {
                     etape("ÉTAPE 2 SUR 3", "Démarrer Shizuku",
                             "Le téléphone doit être connecté au Wi-Fi.\n\n"
-                            + "1. Ouvrez Paramètres › À propos du téléphone et touchez 7 fois "
-                            + "« Numéro de build » (ou « Version MIUI »). Un message dit que vous êtes développeur.\n"
+                            + "1. Touchez le bouton gris, puis touchez 7 fois "
+                            + "« Numéro de build » (sur Xiaomi : « Version de l'OS » ou « Version MIUI »). Un message dit que vous êtes développeur.\n"
                             + "2. Touchez le bouton bleu : Shizuku s'ouvre.\n"
                             + "3. Dans Shizuku, touchez « Associer » (Pairing) et suivez ses indications : "
                             + "il vous fera activer le « Débogage sans fil ».\n"
@@ -295,7 +301,7 @@ public class MainActivity extends Activity {
                             + "6. Revenez ici : l'écran passe tout seul à l'étape 3.\n\n"
                             + "Après un redémarrage du téléphone, refaites seulement le point 5.",
                             "Ouvrir Shizuku", ouvrirShizuku);
-                    raccourci("Ouvrir « À propos du téléphone »", Settings.ACTION_DEVICE_INFO_SETTINGS);
+                    raccourci("Ouvrir « À propos du téléphone »", Settings.ACTION_DEVICE_INFO_SETTINGS, "build_number");
                 }
             } else if (xiaomi()) {
                 etape("ÉTAPE 3 SUR 3", "Donner l'autorisation",
@@ -308,7 +314,7 @@ public class MainActivity extends Activity {
                         + "4. Revenez ici et touchez le bouton bleu, puis « Autoriser ».",
                         "Autoriser", v -> Shizuku.requestPermission(1));
                 raccourci("Ouvrir les options pour les développeurs",
-                        Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS);
+                        Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS, "usb_debugging_security");
             } else {
                 etape("ÉTAPE 3 SUR 3", "Donner l'autorisation",
                         "Touchez le bouton bleu, puis « Autoriser » dans la fenêtre qui s'ouvre.",

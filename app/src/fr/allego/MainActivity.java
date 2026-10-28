@@ -64,7 +64,7 @@ public class MainActivity extends Activity {
     private static final int BLEU = 0xFF1E63E9, VERT = 0xFF2E7D32;
     private TextView etat, numero, titreEtape, diag;
     private LinearLayout principal;
-    private Button action, toutSupprimer;
+    private Button action, reglages, toutSupprimer;
     private final Button[] onglets = new Button[3];
     private BaseAdapter adaptateur;
 
@@ -104,6 +104,10 @@ public class MainActivity extends Activity {
         carte.addView(titreEtape);
         carte.addView(etat);
         carte.addView(action);
+        reglages = gros(0xFF5F6B7A);
+        LinearLayout.LayoutParams lr = new LinearLayout.LayoutParams(-1, -2);
+        lr.topMargin = dp(10);
+        carte.addView(reglages, lr);
         diag = texte(13, false, 0xFF888888);
         diag.setPadding(0, dp(10), 0, 0);
         carte.addView(diag);
@@ -218,6 +222,25 @@ public class MainActivity extends Activity {
         action.setVisibility(bouton == null ? View.GONE : View.VISIBLE);
         action.setText(bouton);
         action.setOnClickListener(clic);
+        reglages.setVisibility(View.GONE);
+    }
+
+    /** Bouton gris qui ouvre directement la bonne page des Paramètres. */
+    private void raccourci(String texte, String page) {
+        reglages.setVisibility(View.VISIBLE);
+        reglages.setText(texte);
+        reglages.setOnClickListener(v -> {
+            try {
+                startActivity(new Intent(page));
+            } catch (Exception e) {
+                startActivity(new Intent(Settings.ACTION_SETTINGS));
+            }
+        });
+    }
+
+    private static boolean xiaomi() {
+        String m = (Build.MANUFACTURER + Build.BRAND).toLowerCase();
+        return m.contains("xiaomi") || m.contains("redmi") || m.contains("poco");
     }
 
     private final Runnable verifier = this::majEtat;
@@ -258,6 +281,7 @@ public class MainActivity extends Activity {
                             + "suivre est dans Shizuku, partie « Démarrer en se connectant à un ordinateur ».\n\n"
                             + "À refaire après chaque redémarrage du téléphone.",
                             "Ouvrir Shizuku", ouvrirShizuku);
+                    raccourci("Ouvrir « À propos du téléphone »", Settings.ACTION_DEVICE_INFO_SETTINGS);
                 } else {
                     etape("ÉTAPE 2 SUR 3", "Démarrer Shizuku",
                             "Le téléphone doit être connecté au Wi-Fi.\n\n"
@@ -271,7 +295,20 @@ public class MainActivity extends Activity {
                             + "6. Revenez ici : l'écran passe tout seul à l'étape 3.\n\n"
                             + "Après un redémarrage du téléphone, refaites seulement le point 5.",
                             "Ouvrir Shizuku", ouvrirShizuku);
+                    raccourci("Ouvrir « À propos du téléphone »", Settings.ACTION_DEVICE_INFO_SETTINGS);
                 }
+            } else if (xiaomi()) {
+                etape("ÉTAPE 3 SUR 3", "Donner l'autorisation",
+                        "Sur Xiaomi, un réglage caché doit d'abord être activé, sinon Shizuku "
+                        + "affiche « La permission de adb est limitée ».\n\n"
+                        + "1. Touchez le bouton gris : les options pour les développeurs s'ouvrent.\n"
+                        + "2. Descendez et activez « Débogage USB (paramètres de sécurité) ». "
+                        + "Une carte SIM et un compte Xiaomi connecté sont demandés.\n"
+                        + "3. Ouvrez Shizuku, touchez « Arrêter » puis « Démarrer ».\n"
+                        + "4. Revenez ici et touchez le bouton bleu, puis « Autoriser ».",
+                        "Autoriser", v -> Shizuku.requestPermission(1));
+                raccourci("Ouvrir les options pour les développeurs",
+                        Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS);
             } else {
                 etape("ÉTAPE 3 SUR 3", "Donner l'autorisation",
                         "Touchez le bouton bleu, puis « Autoriser » dans la fenêtre qui s'ouvre.",

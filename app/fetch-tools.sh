@@ -13,4 +13,12 @@ if [ ! -x "$T/aapt2" ]; then
   unzip -p "$T/apktool.jar" prebuilt/linux/aapt2_64 > "$T/aapt2"
   chmod +x "$T/aapt2"
 fi
+
+# Shizuku : donne à l'app les droits d'ADB, sans root ni PC (Android 11+)
+for m in api provider aidl shared; do
+  if [ ! -s "$T/shizuku-$m.jar" ]; then
+    get "shizuku-$m.aar" "https://repo.maven.apache.org/maven2/dev/rikka/shizuku/$m/13.1.5/$m-13.1.5.aar"
+    unzip -p "$T/shizuku-$m.aar" classes.jar > "$T/shizuku-$m.jar"
+  fi
+done
 echo "Outils prêts dans $T"

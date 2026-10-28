@@ -1,8 +1,2 @@
-android/.tools/
-android/build/
-moniteur/android/build/
-moniteur/pc/outils/
-moniteur/**/bin/
-moniteur/**/obj/
-dist/moniteur-pc.apk
-__pycache__/
+app/.tools/
+app/build/

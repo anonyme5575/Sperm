@@ -8,7 +8,9 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -24,6 +26,7 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -58,7 +61,9 @@ public class MainActivity extends Activity {
     private int onglet = ONGLET_CONSEILLEES;
     private boolean occupe;
 
-    private TextView etat;
+    private static final int BLEU = 0xFF1E63E9, VERT = 0xFF2E7D32;
+    private TextView etat, numero, titreEtape;
+    private LinearLayout principal;
     private Button action, toutSupprimer;
     private final Button[] onglets = new Button[3];
     private BaseAdapter adaptateur;
@@ -70,43 +75,101 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
-        int pad = dp(12);
+        int pad = dp(16);
         LinearLayout racine = new LinearLayout(this);
         racine.setOrientation(LinearLayout.VERTICAL);
         racine.setPadding(pad, pad, pad, 0);
+        racine.setBackgroundColor(0xFFF2F4F7);
+        if (getActionBar() != null) getActionBar().hide();
 
-        etat = new TextView(this);
-        etat.setTextSize(16);
-        etat.setPadding(pad, pad, pad, pad);
-        racine.addView(etat);
-        action = new Button(this);
-        racine.addView(action);
+        TextView titre = texte(28, true, 0xFF1A237E);
+        titre.setText("Nettoyeur");
+        racine.addView(titre);
+        TextView sous = texte(16, false, 0xFF555555);
+        sous.setText("Retire les apps inutiles installées par le fabricant.");
+        sous.setPadding(0, 0, 0, pad);
+        racine.addView(sous);
 
+        LinearLayout carte = new LinearLayout(this);
+        carte.setOrientation(LinearLayout.VERTICAL);
+        carte.setPadding(pad, pad, pad, pad);
+        carte.setBackground(rond(Color.WHITE));
+        numero = texte(14, true, BLEU);
+        titreEtape = texte(22, true, Color.BLACK);
+        etat = texte(17, false, 0xFF333333);
+        etat.setLineSpacing(0, 1.25f);
+        etat.setPadding(0, dp(8), 0, dp(8));
+        action = gros(BLEU);
+        carte.addView(numero);
+        carte.addView(titreEtape);
+        carte.addView(etat);
+        carte.addView(action);
+        ScrollView defile = new ScrollView(this);
+        defile.addView(carte);
+        racine.addView(defile, new LinearLayout.LayoutParams(-1, -2));
+
+        principal = new LinearLayout(this);
+        principal.setOrientation(LinearLayout.VERTICAL);
         LinearLayout barre = new LinearLayout(this);
-        String[] titres = {"Conseillées", "Toutes", "Supprimées"};
+        barre.setPadding(0, pad, 0, dp(8));
+        String[] titres = {"À supprimer", "Toutes", "Supprimées"};
         for (int i = 0; i < 3; i++) {
             final int n = i;
             onglets[i] = new Button(this);
+            onglets[i].setAllCaps(false);
+            onglets[i].setTextSize(15);
             onglets[i].setText(titres[i]);
             onglets[i].setOnClickListener(v -> { onglet = n; filtrer(); });
-            barre.addView(onglets[i], new LinearLayout.LayoutParams(0, -2, 1));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(48), 1);
+            lp.setMargins(dp(3), 0, dp(3), 0);
+            barre.addView(onglets[i], lp);
         }
-        racine.addView(barre);
+        principal.addView(barre);
 
-        toutSupprimer = new Button(this);
+        toutSupprimer = gros(VERT);
         toutSupprimer.setOnClickListener(v -> confirmerToutes());
-        racine.addView(toutSupprimer);
+        principal.addView(toutSupprimer);
 
         ListView liste = new ListView(this);
+        liste.setDivider(new ColorDrawable(0));
+        liste.setDividerHeight(dp(8));
+        liste.setPadding(0, dp(8), 0, dp(8));
+        liste.setClipToPadding(false);
         adaptateur = new Adaptateur();
         liste.setAdapter(adaptateur);
         liste.setOnItemClickListener((p, v, pos, id) -> choisir(visibles.get(pos)));
-        racine.addView(liste, new LinearLayout.LayoutParams(-1, 0, 1));
+        principal.addView(liste, new LinearLayout.LayoutParams(-1, 0, 1));
+        racine.addView(principal, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(racine);
 
         Shizuku.addRequestPermissionResultListener(permission);
         Shizuku.addBinderReceivedListenerSticky(connecte);
         Shizuku.addBinderDeadListener(deconnecte);
+    }
+
+    private TextView texte(int taille, boolean gras, int couleur) {
+        TextView t = new TextView(this);
+        t.setTextSize(taille);
+        t.setTextColor(couleur);
+        if (gras) t.setTypeface(null, Typeface.BOLD);
+        return t;
+    }
+
+    private Button gros(int couleur) {
+        Button b = new Button(this);
+        b.setAllCaps(false);
+        b.setTextSize(18);
+        b.setTextColor(Color.WHITE);
+        b.setBackground(rond(couleur));
+        b.setMinHeight(dp(56));
+        return b;
+    }
+
+    private GradientDrawable rond(int couleur) {
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(couleur);
+        g.setCornerRadius(dp(16));
+        return g;
     }
 
     @Override
@@ -136,36 +199,62 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void etape(String num, String titre, String texte, String bouton, View.OnClickListener clic) {
+        numero.setText(num);
+        titreEtape.setText(titre);
+        etat.setText(texte);
+        action.setVisibility(bouton == null ? View.GONE : View.VISIBLE);
+        action.setText(bouton);
+        action.setOnClickListener(clic);
+    }
+
     private void majEtat() {
         ui.post(() -> {
-            if (pret()) {
-                etat.setText("✅ Prêt. Touchez une app pour la supprimer ou la remettre.");
-                etat.setBackgroundColor(0xFFE8F5E9);
-                action.setVisibility(View.GONE);
-                return;
-            }
-            etat.setBackgroundColor(0xFFFFF3E0);
-            action.setVisibility(View.VISIBLE);
-            if (!installee(SHIZUKU)) {
-                etat.setText("Étape 1 sur 3\n\nAndroid interdit aux apps de supprimer les apps du "
-                        + "fabricant. L'app gratuite « Shizuku » lève cette limite en toute sécurité. "
-                        + "Installez-la d'abord.");
-                action.setText("Installer Shizuku");
-                action.setOnClickListener(v -> ouvrir("market://details?id=" + SHIZUKU,
-                        "https://play.google.com/store/apps/details?id=" + SHIZUKU));
+            boolean ok = pret();
+            principal.setVisibility(ok ? View.VISIBLE : View.GONE);
+            if (ok) {
+                etape("✅ TOUT EST PRÊT", "Choisissez les apps à supprimer",
+                        "Touchez une app dans la liste. Vous pourrez toujours la remettre dans « Supprimées ».",
+                        null, null);
+            } else if (!installee(SHIZUKU)) {
+                etape("ÉTAPE 1 SUR 3", "Installer l'outil Shizuku",
+                        "Par sécurité, Android bloque la suppression des apps du fabricant. "
+                        + "L'app gratuite Shizuku lève ce blocage.\n\n"
+                        + "1. Touchez le bouton bleu.\n"
+                        + "2. Dans le Play Store, touchez « Installer ».\n"
+                        + "3. Revenez ici quand c'est fini.",
+                        "Installer Shizuku", v -> ouvrir("market://details?id=" + SHIZUKU,
+                                "https://play.google.com/store/apps/details?id=" + SHIZUKU));
             } else if (!Shizuku.pingBinder()) {
-                etat.setText("Étape 2 sur 3\n\nOuvrez Shizuku et touchez « Démarrer » en suivant "
-                        + "ses explications (débogage sans fil). À refaire après chaque redémarrage "
-                        + "du téléphone.\n\nRevenez ensuite ici.");
-                action.setText("Ouvrir Shizuku");
-                action.setOnClickListener(v -> {
+                View.OnClickListener ouvrirShizuku = v -> {
                     Intent i = getPackageManager().getLaunchIntentForPackage(SHIZUKU);
                     if (i != null) startActivity(i);
-                });
+                };
+                if (Build.VERSION.SDK_INT < 30) {
+                    etape("ÉTAPE 2 SUR 3", "Démarrer Shizuku (avec un ordinateur)",
+                            "Sur votre téléphone (Android 10 ou plus ancien), cette étape demande un "
+                            + "ordinateur et un câble USB. Faites-vous aider si besoin : la marche à "
+                            + "suivre est dans Shizuku, partie « Démarrer en se connectant à un ordinateur ».\n\n"
+                            + "À refaire après chaque redémarrage du téléphone.",
+                            "Ouvrir Shizuku", ouvrirShizuku);
+                } else {
+                    etape("ÉTAPE 2 SUR 3", "Démarrer Shizuku",
+                            "Le téléphone doit être connecté au Wi-Fi.\n\n"
+                            + "1. Ouvrez Paramètres › À propos du téléphone et touchez 7 fois "
+                            + "« Numéro de build » (ou « Version MIUI »). Un message dit que vous êtes développeur.\n"
+                            + "2. Touchez le bouton bleu : Shizuku s'ouvre.\n"
+                            + "3. Dans Shizuku, touchez « Associer » (Pairing) et suivez ses indications : "
+                            + "il vous fera activer le « Débogage sans fil ».\n"
+                            + "4. Un code à 6 chiffres s'affiche : tapez-le dans la notification de Shizuku.\n"
+                            + "5. Dans Shizuku, touchez « Démarrer ».\n"
+                            + "6. Revenez ici : l'écran passe tout seul à l'étape 3.\n\n"
+                            + "Après un redémarrage du téléphone, refaites seulement le point 5.",
+                            "Ouvrir Shizuku", ouvrirShizuku);
+                }
             } else {
-                etat.setText("Étape 3 sur 3\n\nAutorisez Nettoyeur à utiliser Shizuku.");
-                action.setText("Autoriser");
-                action.setOnClickListener(v -> Shizuku.requestPermission(1));
+                etape("ÉTAPE 3 SUR 3", "Donner l'autorisation",
+                        "Touchez le bouton bleu, puis « Autoriser » dans la fenêtre qui s'ouvre.",
+                        "Autoriser", v -> Shizuku.requestPermission(1));
             }
         });
     }
@@ -235,9 +324,12 @@ public class MainActivity extends Activity {
                 visibles.add(a);
             }
         }
-        for (int i = 0; i < 3; i++) onglets[i].setTypeface(null, i == onglet ? Typeface.BOLD : Typeface.NORMAL);
+        for (int i = 0; i < 3; i++) {
+            onglets[i].setBackground(rond(i == onglet ? BLEU : 0xFFDDE3EA));
+            onglets[i].setTextColor(i == onglet ? Color.WHITE : Color.BLACK);
+        }
         toutSupprimer.setVisibility(onglet == ONGLET_CONSEILLEES && !visibles.isEmpty() ? View.VISIBLE : View.GONE);
-        toutSupprimer.setText("Supprimer les " + visibles.size() + " apps conseillées");
+        toutSupprimer.setText("Supprimer ces " + visibles.size() + " apps sans risque");
         adaptateur.notifyDataSetChanged();
     }
 
@@ -251,12 +343,13 @@ public class MainActivity extends Activity {
             if (ligne == null) {
                 ligne = new LinearLayout(MainActivity.this);
                 ligne.setGravity(Gravity.CENTER_VERTICAL);
-                ligne.setPadding(dp(8), dp(10), dp(8), dp(10));
+                ligne.setPadding(dp(12), dp(14), dp(12), dp(14));
+                ligne.setBackground(rond(Color.WHITE));
                 ImageView ic = new ImageView(MainActivity.this);
-                ligne.addView(ic, new LinearLayout.LayoutParams(dp(40), dp(40)));
+                ligne.addView(ic, new LinearLayout.LayoutParams(dp(48), dp(48)));
                 TextView t = new TextView(MainActivity.this);
                 t.setPadding(dp(12), 0, 0, 0);
-                t.setTextSize(15);
+                t.setTextSize(17);
                 ligne.addView(t, new LinearLayout.LayoutParams(0, -2, 1));
             }
             App a = visibles.get(i);

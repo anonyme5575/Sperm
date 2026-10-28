@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Compile l'app Android Nettoyeur sans Android Studio. Il faut un JDK (17+), curl, unzip et zip.
+# Compile l'app Android Allégo sans Android Studio. Il faut un JDK (17+), curl, unzip et zip.
 #
-#   app/build.sh   -> dist/nettoyeur.apk
+#   app/build.sh   -> dist/allego.apk
 set -euo pipefail
 A="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(dirname "$A")"
 T="$A/.tools"
 OUT="$A/build"
-VERSION_CODE="${VERSION_CODE:-2}"
-VERSION_NAME="${VERSION_NAME:-1.1}"
+VERSION_CODE="${VERSION_CODE:-3}"
+VERSION_NAME="${VERSION_NAME:-1.2}"
 
 [ -x "$T/aapt2" ] && [ -s "$T/shizuku-api.jar" ] || "$A/fetch-tools.sh"
 
@@ -40,5 +40,5 @@ java -cp "$T/r8.jar" com.android.tools.r8.D8 --release --min-api 24 \
 # Signature (clé de debug : suffisant pour installer l'APK à la main)
 java -jar "$T/signer.jar" -a "$OUT/unsigned.apk" -o "$OUT/signed" --allowResign >/dev/null
 mkdir -p "$ROOT/dist"
-cp "$OUT"/signed/*.apk "$ROOT/dist/nettoyeur.apk"
-echo "APK : $ROOT/dist/nettoyeur.apk"
+cp "$OUT"/signed/*.apk "$ROOT/dist/allego.apk"
+echo "APK : $ROOT/dist/allego.apk"

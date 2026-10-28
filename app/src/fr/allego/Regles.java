@@ -1,4 +1,4 @@
-package fr.nettoyeur;
+package fr.allego;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -43,7 +43,7 @@ final class Regles {
             "com.miui.guardprovider", "com.miui.powerkeeper", "com.android.updater",
             "com.samsung.android.lool", "com.sec.android.app.launcher", "com.samsung.android.honeyboard",
             "com.huawei.android.launcher", "com.oppo.launcher", "com.google.android.apps.nexuslauncher",
-            "moe.shizuku.privileged.api", "fr.nettoyeur",
+            "moe.shizuku.privileged.api", "fr.allego",
         }) PROTEGEES.add(p);
 
         c("Publicités et statistiques Xiaomi", "com.miui.analytics", "com.miui.msa.global",

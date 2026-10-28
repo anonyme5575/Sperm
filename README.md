@@ -1,4 +1,4 @@
-# Nettoyeur
+# Allégo
 
 App Android pour **supprimer les apps préinstallées** (Facebook, publicités Xiaomi, apps du fabricant…) directement depuis le téléphone, sans PC et sans root.
 
@@ -11,11 +11,11 @@ App Android pour **supprimer les apps préinstallées** (Facebook, publicités X
 
 ## Installation
 
-1. Copiez `dist/nettoyeur.apk` sur le téléphone et installez-le.
-2. Ouvrez Nettoyeur et suivez les 3 étapes affichées :
+1. Copiez `dist/allego.apk` sur le téléphone et installez-le.
+2. Ouvrez Allégo et suivez les 3 étapes affichées :
    1. installer **Shizuku** (gratuit, sur le Play Store) : c'est lui qui donne le droit de supprimer les apps du fabricant ;
    2. démarrer Shizuku (il explique comment, par le « débogage sans fil ») ;
-   3. autoriser Nettoyeur.
+   3. autoriser Allégo.
 
 Android 11 et plus : tout se fait sur le téléphone. Android 7 à 10 : Shizuku doit être démarré une fois depuis un PC après chaque redémarrage (voir l'aide de Shizuku).
 
@@ -27,4 +27,4 @@ Android 11 et plus : tout se fait sur le téléphone. Android 7 à 10 : Shizuku 
 
 ## Compiler
 
-`app/build.sh` produit `dist/nettoyeur.apk` (JDK 17+, curl, unzip, zip). GitHub Actions le compile à chaque push.
+`app/build.sh` produit `dist/allego.apk` (JDK 17+, curl, unzip, zip). GitHub Actions le compile à chaque push.

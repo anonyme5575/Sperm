@@ -1,4 +1,4 @@
-package fr.nettoyeur;
+package fr.allego;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -62,7 +62,7 @@ public class MainActivity extends Activity {
     private boolean occupe;
 
     private static final int BLEU = 0xFF1E63E9, VERT = 0xFF2E7D32;
-    private TextView etat, numero, titreEtape;
+    private TextView etat, numero, titreEtape, diag;
     private LinearLayout principal;
     private Button action, toutSupprimer;
     private final Button[] onglets = new Button[3];
@@ -83,7 +83,7 @@ public class MainActivity extends Activity {
         if (getActionBar() != null) getActionBar().hide();
 
         TextView titre = texte(28, true, 0xFF1A237E);
-        titre.setText("Nettoyeur");
+        titre.setText("Allégo");
         racine.addView(titre);
         TextView sous = texte(16, false, 0xFF555555);
         sous.setText("Retire les apps inutiles installées par le fabricant.");
@@ -104,6 +104,9 @@ public class MainActivity extends Activity {
         carte.addView(titreEtape);
         carte.addView(etat);
         carte.addView(action);
+        diag = texte(13, false, 0xFF888888);
+        diag.setPadding(0, dp(10), 0, 0);
+        carte.addView(diag);
         ScrollView defile = new ScrollView(this);
         defile.addView(carte);
         racine.addView(defile, new LinearLayout.LayoutParams(-1, -2));
@@ -180,10 +183,17 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onPause() {
+        ui.removeCallbacks(verifier);
+        super.onPause();
+    }
+
+    @Override
     protected void onDestroy() {
         Shizuku.removeRequestPermissionResultListener(permission);
         Shizuku.removeBinderReceivedListener(connecte);
         Shizuku.removeBinderDeadListener(deconnecte);
+        ui.removeCallbacks(verifier);
         fond.shutdown();
         super.onDestroy();
     }
@@ -208,9 +218,18 @@ public class MainActivity extends Activity {
         action.setOnClickListener(clic);
     }
 
+    private final Runnable verifier = this::majEtat;
+
     private void majEtat() {
         ui.post(() -> {
             boolean ok = pret();
+            ui.removeCallbacks(verifier);
+            if (!ok && hasWindowFocus()) ui.postDelayed(verifier, 1500);
+            boolean lie = false, autorise = false;
+            try { lie = Shizuku.pingBinder(); autorise = lie && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED; } catch (Throwable t) { }
+            diag.setText("Vérification automatique : Shizuku installé " + (installee(SHIZUKU) ? "✓" : "✗")
+                    + " · connecté " + (lie ? "✓" : "✗") + " · autorisé " + (autorise ? "✓" : "✗")
+                    + (installee(SHIZUKU) && !lie ? "\nSi Shizuku est démarré mais « connecté ✗ » reste affiché, fermez Allégo (bouton des apps récentes) puis rouvrez-le." : ""));
             principal.setVisibility(ok ? View.VISIBLE : View.GONE);
             if (ok) {
                 etape("✅ TOUT EST PRÊT", "Choisissez les apps à supprimer",
@@ -381,7 +400,7 @@ public class MainActivity extends Activity {
         } else if (a.niveau == Regles.PROTEGEE) {
             new AlertDialog.Builder(this).setTitle(a.nom)
                     .setMessage("Cette app est indispensable au bon fonctionnement du téléphone "
-                            + "(appels, écran, sécurité ou mises à jour). Nettoyeur refuse de la supprimer.")
+                            + "(appels, écran, sécurité ou mises à jour). Allégo refuse de la supprimer.")
                     .setPositiveButton("Compris", null).show();
         } else if (a.niveau == Regles.CONSEILLEE) {
             dialogue("Supprimer « " + a.nom + " » ?", Regles.raison(a.paquet) + ". Sa suppression "

@@ -61,8 +61,9 @@ public class MainActivity extends Activity {
     private int onglet = ONGLET_CONSEILLEES;
     private boolean occupe, actif;
 
-    private static final int BLEU = 0xFF1E63E9, VERT = 0xFF2E7D32;
-    private TextView etat, numero, titreEtape, diag;
+    private static final int BLEU = 0xFF2563EB, VERT = 0xFF16A34A;
+    private LinearLayout corps, progression;
+    private TextView numero, titreEtape, diag;
     private LinearLayout principal;
     private Button action, reglages, toutSupprimer;
     private final Button[] onglets = new Button[3];
@@ -79,30 +80,51 @@ public class MainActivity extends Activity {
         LinearLayout racine = new LinearLayout(this);
         racine.setOrientation(LinearLayout.VERTICAL);
         racine.setPadding(pad, pad, pad, 0);
-        racine.setBackgroundColor(0xFFF2F4F7);
+        racine.setBackgroundColor(0xFFF5F7FA);
         if (getActionBar() != null) getActionBar().hide();
 
-        TextView titre = texte(28, true, 0xFF1A237E);
+        LinearLayout entete = new LinearLayout(this);
+        entete.setGravity(Gravity.CENTER_VERTICAL);
+        entete.setPadding(0, dp(8), 0, pad);
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.ic_launcher);
+        entete.addView(logo, new LinearLayout.LayoutParams(dp(52), dp(52)));
+        LinearLayout noms = new LinearLayout(this);
+        noms.setOrientation(LinearLayout.VERTICAL);
+        noms.setPadding(dp(12), 0, 0, 0);
+        TextView titre = texte(26, true, 0xFF10233F);
         titre.setText("Allégo");
-        racine.addView(titre);
-        TextView sous = texte(16, false, 0xFF555555);
-        sous.setText("Retire les apps inutiles installées par le fabricant.");
-        sous.setPadding(0, 0, 0, pad);
-        racine.addView(sous);
+        noms.addView(titre);
+        TextView sous = texte(14, false, 0xFF6B7785);
+        sous.setText("Allégez votre téléphone, en toute sécurité");
+        noms.addView(sous);
+        entete.addView(noms);
+        racine.addView(entete);
 
         LinearLayout carte = new LinearLayout(this);
         carte.setOrientation(LinearLayout.VERTICAL);
         carte.setPadding(pad, pad, pad, pad);
         carte.setBackground(rond(Color.WHITE));
-        numero = texte(14, true, BLEU);
+        carte.setElevation(dp(3));
+        progression = new LinearLayout(this);
+        progression.setPadding(0, 0, 0, dp(12));
+        for (int i = 0; i < 3; i++) {
+            View barre = new View(this);
+            LinearLayout.LayoutParams lb = new LinearLayout.LayoutParams(0, dp(6), 1);
+            lb.setMargins(i == 0 ? 0 : dp(4), 0, 0, 0);
+            progression.addView(barre, lb);
+        }
+        carte.addView(progression);
+        numero = texte(13, true, BLEU);
+        numero.setLetterSpacing(0.08f);
         titreEtape = texte(22, true, Color.BLACK);
-        etat = texte(17, false, 0xFF333333);
-        etat.setLineSpacing(0, 1.25f);
-        etat.setPadding(0, dp(8), 0, dp(8));
+        corps = new LinearLayout(this);
+        corps.setOrientation(LinearLayout.VERTICAL);
+        corps.setPadding(0, dp(10), 0, dp(14));
         action = gros(BLEU);
         carte.addView(numero);
         carte.addView(titreEtape);
-        carte.addView(etat);
+        carte.addView(corps);
         carte.addView(action);
         reglages = gros(0xFF5F6B7A);
         LinearLayout.LayoutParams lr = new LinearLayout.LayoutParams(-1, -2);
@@ -218,7 +240,30 @@ public class MainActivity extends Activity {
     private void etape(String num, String titre, String texte, String bouton, View.OnClickListener clic) {
         numero.setText(num);
         titreEtape.setText(titre);
-        etat.setText(texte);
+        int n = num.startsWith("ÉTAPE ") ? num.charAt(6) - '0' : 4;
+        for (int i = 0; i < 3; i++) {
+            progression.getChildAt(i).setBackground(rond(i < n - 1 ? VERT : i == n - 1 ? BLEU : 0xFFE3E8EE));
+        }
+        corps.removeAllViews();
+        for (String ligne : texte.split("\n")) {
+            if (ligne.isEmpty()) continue;
+            LinearLayout r = new LinearLayout(this);
+            r.setPadding(0, dp(6), 0, dp(6));
+            TextView t = texte(16, false, 0xFF2B3542);
+            t.setLineSpacing(0, 1.2f);
+            if (ligne.matches("\\d+\\. .*")) {
+                TextView pastille = texte(14, true, BLEU);
+                pastille.setGravity(Gravity.CENTER);
+                pastille.setBackground(rond(0xFFE7EEFD));
+                pastille.setText(ligne.substring(0, ligne.indexOf('.')));
+                r.addView(pastille, new LinearLayout.LayoutParams(dp(28), dp(28)));
+                t.setPadding(dp(12), dp(2), 0, 0);
+                ligne = ligne.substring(ligne.indexOf(' ') + 1);
+            }
+            t.setText(ligne);
+            r.addView(t, new LinearLayout.LayoutParams(0, -2, 1));
+            corps.addView(r);
+        }
         action.setVisibility(bouton == null ? View.GONE : View.VISIBLE);
         action.setText(bouton);
         action.setOnClickListener(clic);
@@ -308,7 +353,8 @@ public class MainActivity extends Activity {
                         "Sur Xiaomi, un réglage caché doit d'abord être activé, sinon Shizuku "
                         + "affiche « La permission de adb est limitée ».\n\n"
                         + "1. Touchez le bouton gris : les options pour les développeurs s'ouvrent.\n"
-                        + "2. Descendez et activez « Débogage USB (paramètres de sécurité) ». "
+                        + "2. Descendez jusqu'à « Débogage », passez « Installer via USB » et activez "
+                        + "« Débogage USB (paramètres de sécurité) » (sous-titre : « Accorder les autorisations et simulation d'entrée »). "
                         + "Une carte SIM et un compte Xiaomi connecté sont demandés.\n"
                         + "3. Ouvrez Shizuku, touchez « Arrêter » puis « Démarrer ».\n"
                         + "4. Revenez ici et touchez le bouton bleu, puis « Autoriser ».",
@@ -415,19 +461,26 @@ public class MainActivity extends Activity {
                 t.setPadding(dp(12), 0, 0, 0);
                 t.setTextSize(17);
                 ligne.addView(t, new LinearLayout.LayoutParams(0, -2, 1));
+                TextView pill = texte(12, true, Color.WHITE);
+                pill.setPadding(dp(10), dp(4), dp(10), dp(4));
+                ligne.addView(pill);
             }
             App a = visibles.get(i);
             ((ImageView) ligne.getChildAt(0)).setImageDrawable(a.icone);
             TextView t = (TextView) ligne.getChildAt(1);
             String sous;
             int couleur;
-            if (a.supprimee) { sous = "Supprimée · touchez pour la remettre"; couleur = Color.GRAY; }
-            else if (a.niveau == Regles.PROTEGEE) { sous = "🔒 Indispensable, ne peut pas être supprimée"; couleur = 0xFF757575; }
-            else if (a.niveau == Regles.CONSEILLEE) { sous = "✅ Sans risque · " + Regles.raison(a.paquet); couleur = 0xFF2E7D32; }
-            else { sous = "⚠️ Inconnue · à éviter si vous n'êtes pas sûr"; couleur = 0xFFE65100; }
+            String statut;
+            if (a.supprimee) { sous = "Touchez pour la remettre"; statut = "Supprimée"; couleur = 0xFF6B7785; }
+            else if (a.niveau == Regles.PROTEGEE) { sous = "Indispensable au téléphone"; statut = "Protégée"; couleur = 0xFF8A94A3; }
+            else if (a.niveau == Regles.CONSEILLEE) { sous = Regles.raison(a.paquet); statut = "Sans risque"; couleur = VERT; }
+            else { sous = "Rôle inconnu, à éviter en cas de doute"; statut = "Prudence"; couleur = 0xFFE07B00; }
+            TextView pill = (TextView) ligne.getChildAt(2);
+            pill.setText(statut);
+            pill.setBackground(rond(couleur));
             t.setTextColor(a.niveau == Regles.PROTEGEE ? Color.GRAY : Color.BLACK);
             android.text.SpannableString s = new android.text.SpannableString(a.nom + "\n" + sous);
-            s.setSpan(new android.text.style.ForegroundColorSpan(couleur), a.nom.length() + 1, s.length(), 0);
+            s.setSpan(new android.text.style.ForegroundColorSpan(0xFF6B7785), a.nom.length() + 1, s.length(), 0);
             s.setSpan(new android.text.style.RelativeSizeSpan(0.85f), a.nom.length() + 1, s.length(), 0);
             t.setText(s);
             return ligne;

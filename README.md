@@ -136,7 +136,9 @@ La construction est sauvegardée automatiquement dans le navigateur. Le menu « 
 
 ## Arènes
 
-Menu principal → **Arènes** : 20 combats tout faits à regarder (guerre des lits à 2 ou 4, le pont, roi de la colline, siège du château, le géant, survie face aux vagues, chacun pour soi, pluie de flèches…). Guerriers à l'épée, archers qui tirent des flèches, casseurs de lit, géant, monstres. Les coups font reculer, une chute de plus de 4 blocs tue, un lit debout fait revenir les morts de son équipe. Le tableau en bas suit les équipes, les lits et le temps ; « Rejouer » relance.
+Menu principal → **Arènes** : 21 combats tout faits à regarder (guerre des lits à 2 ou 4, le pont, roi de la colline, siège du château, le géant, survie face aux vagues, chacun pour soi, pluie de flèches…). Guerriers à l'épée, archers qui tirent des flèches, casseurs de lit, géant, monstres. Les coups font reculer, une chute de plus de 4 blocs tue, un lit debout fait revenir les morts de son équipe. Le tableau en bas suit les équipes, les lits et le temps ; « Rejouer » relance.
 
 Bâtisseurs : 10 plans au choix (cabane, tour, maison, mur fortifié, pyramide, arbre, pont, statue, fontaine, château) ou « Au hasard », où il enchaîne jusqu'à 5 ouvrages.
+
+Armes : épée, hache (gros dégâts, recul de 2 cases), lance (frappe de plus loin), arc, baguette magique, griffes pour les monstres. Pouvoirs, un par combattant avec recharge : soin, bouclier, boule de feu (dégâts de zone), téléportation derrière l'ennemi, rage (dégâts doublés). Intelligence : il vise l'ennemi le plus faible à portée, les tireurs gardent leurs distances, un blessé se replie vers un allié ou se soigne, chacun esquive en sautant de côté (coups et flèches), saute d'un bloc vers le haut et bondit par-dessus les trous. Virus : dans « Virus » et « Survie », un monstre qui touche un survivant peut le changer en monstre.
 

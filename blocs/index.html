@@ -320,7 +320,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     </button>
     <div class="menu panel" id="menu" hidden>
       <button id="m-title" class="home-btn">Menu principal <small>mondes, aide</small></button>
-      <button id="m-arenas">Arènes <small>20 combats</small></button>
+      <button id="m-arenas">Arènes <small>21 combats</small></button>
       <p class="sec">Vue</p>
       <button id="m-home">Aller à ma construction</button>
       <button id="m-view">Revenir au centre <small>0, 0</small></button>
@@ -453,7 +453,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     <div class="t-view" id="t-main">
       <button class="t-btn primary" id="t-continue"><span>Continuer</span><small id="t-continue-name"></small></button>
       <button class="t-btn" id="t-new"><span>Nouveau monde</span></button>
-      <button class="t-btn" id="t-arena"><span>Arènes</span><small>20 combats à regarder</small></button>
+      <button class="t-btn" id="t-arena"><span>Arènes</span><small>21 combats à regarder</small></button>
       <button class="t-btn" id="t-worlds"><span>Mes mondes</span><small id="t-worlds-count"></small></button>
       <button class="t-btn" id="t-help"><span>Comment jouer</span></button>
     </div>
@@ -776,6 +776,14 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       part(box(0.04, 0.04, 0.3), plain("#a0703f"), 0, -0.42, 0.15, armR);
       part(box(0.22, 0.11, 0.11), plain("#2b2a33"), 0, -0.42, 0.31, armR);
     }
+    if (d.j === 6) { // lance
+      part(box(0.04, 0.04, 0.8), plain("#a0703f"), 0, -0.42, 0.3, armR);
+      part(box(0.07, 0.07, 0.14), plain("#c9c6bd"), 0, -0.42, 0.74, armR);
+    }
+    if (d.j === 7) { // baguette
+      part(box(0.03, 0.03, 0.34), plain("#2b2a33"), 0, -0.42, 0.16, armR);
+      part(box(0.07, 0.07, 0.07), plain("#d6409f"), 0, -0.42, 0.34, armR);
+    }
     if (d.j === 5) { // arc
       part(box(0.03, 0.46, 0.04), plain("#a0703f"), 0, -0.42, 0.14, armR);
       part(box(0.015, 0.42, 0.015), plain("#f2f0eb"), 0, -0.42, 0.08, armR);
@@ -801,7 +809,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     bar.visible = false;
     bar.raycast = () => {};
     g.add(bar);
-    g.userData = { bar, hp: HP_MAX, max: HP_MAX, fall: 0, cd: 0, love: 25 + Math.random() * 35, foe: null, legL, legR, armL, armR, head, from: new THREE.Vector3(), to: new THREE.Vector3(), t: 1, wait: Math.random() * 2, phase: 0, look: 0, work: 0, stuck: 0 };
+    g.userData = { bar, hp: HP_MAX, max: HP_MAX, fall: 0, pcd: 0, rage: 0, shield: 0, hop: 0.06, cd: 0, love: 25 + Math.random() * 35, foe: null, legL, legR, armL, armR, head, from: new THREE.Vector3(), to: new THREE.Vector3(), t: 1, wait: Math.random() * 2, phase: 0, look: 0, work: 0, stuck: 0 };
     npcGroup.add(g);
     return g;
   }
@@ -1415,7 +1423,8 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     const below = occ.get(fkey(x, y - 1, z));
     return !!below && below !== id;
   };
-  function moveNpc(id, p, o) {
+  function moveNpc(id, p, o, hop = 0.06) {
+    p.obj.userData.hop = hop;
     cellsOf("npc", p.o).forEach((k) => occ.delete(k));
     p.o = o;
     cellsOf("npc", o).forEach((k) => occ.set(k, id));
@@ -1432,7 +1441,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       if (u.t < 1) {
         u.t = Math.min(1, u.t + dt / (u.fast ? 0.07 : STEP_TIME));
         p.obj.position.lerpVectors(u.from, u.to, u.t);
-        p.obj.position.y += Math.sin(u.t * Math.PI) * 0.06;
+        p.obj.position.y += Math.sin(u.t * Math.PI) * u.hop;
         u.phase += dt * 11;
       } else {
         u.phase *= 0.85;
@@ -1459,7 +1468,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       }
       u.fall = 0; u.fast = false;
       if (!npcWalk) return;
-      u.cd -= dt; u.love -= dt;
+      u.cd -= dt; u.love -= dt; u.pcd -= dt; u.rage -= dt; u.shield -= dt;
       if (!p.ar && u.hp < u.max) u.hp = Math.min(u.max, u.hp + dt * 0.25);
       u.bar.visible = u.hp < u.max;
       if (u.bar.visible) { u.bar.scale.x = 0.5 * Math.max(0, u.hp) / u.max; u.bar.material.color.set(u.hp > u.max / 2 ? 0x30a46c : 0xe5484d); }
@@ -1482,15 +1491,26 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       u.wait = 0.6 + Math.random();
     });
   }
+  // Un pas : à plat, une marche, un saut d'un bloc vers le haut, ou un bond au-dessus d'un trou
   function tryStep(id, p, u, r) {
-    const [x, y, z] = p.o, nx = x + DIRS[r][0], nz = z + DIRS[r][1];
-    for (const dy of [0, 1, -1]) {
-      const ny = y + dy;
-      if (dy === 1 && !freeFor(id, x, y + 1, z)) continue; // pas la place de lever la tête
+    const [x, y, z] = p.o, dx = DIRS[r][0], dz = DIRS[r][1];
+    for (const dy of [0, 1, -1, 2]) {
+      const nx = x + dx, ny = y + dy, nz = z + dz;
+      if (dy > 0 && !freeFor(id, x, y + dy, z)) continue; // pas la place de lever la tête
       if (freeFor(id, nx, ny, nz) && supported(id, nx, ny, nz)) {
         p.rot = r;
         u.wait = Math.random() < 0.8 ? 0 : 0.5 + Math.random();
-        moveNpc(id, p, [nx, ny, nz]);
+        moveNpc(id, p, [nx, ny, nz], dy === 2 ? 0.6 : 0.06);
+        return true;
+      }
+    }
+    if (supported(id, x + dx, y, z + dz)) return false;
+    for (let g = 2; g <= 3; g++) {
+      const fx = x + g * dx, fz = z + g * dz;
+      if (!freeFor(id, x + (g - 1) * dx, y, z + (g - 1) * dz)) return false;
+      if (freeFor(id, fx, y, fz) && supported(id, fx, y, fz)) {
+        p.rot = r;
+        moveNpc(id, p, [fx, y, fz], 0.7);
         return true;
       }
     }
@@ -1533,17 +1553,33 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     return best;
   }
   // Un coup : dégâts, éclats, recul d'un cran (qui peut faire tomber d'un pont)
-  function hurt(src, tid, dmg, knock) {
+  function hurt(src, tid, dmg, knock = 1) {
     const q = pieces.get(tid);
     if (!q) return;
     const v = q.obj.userData, s = src && pieces.get(src);
-    v.hp -= dmg; v.foe = src; v.bar.visible = true;
+    v.foe = src;
+    if (v.shield > 0) return burst(q.obj.position, "#7ce2fe", 3);
+    // Esquive : un saut de côté au dernier moment
+    if (q.ar && s && v.t >= 1 && Math.random() < 0.18 && dodge(tid, q, v, s.rot)) return;
+    v.hp -= dmg; v.bar.visible = true;
     burst(q.obj.position, q.color, 4);
     if (knock && s && v.t >= 1) {
-      const dir = DIRS[s.rot], o = [q.o[0] + dir[0], q.o[1], q.o[2] + dir[1]];
-      if (freeFor(tid, ...o)) moveNpc(tid, q, o);
+      const dir = DIRS[s.rot];
+      let o = q.o;
+      for (let k = 0; k < knock; k++) {
+        const n = [o[0] + dir[0], o[1], o[2] + dir[1]];
+        if (!freeFor(tid, ...n)) break;
+        o = n;
+      }
+      if (o !== q.o) moveNpc(tid, q, o, 0.25);
     }
     if (v.hp <= 0) killNpc(tid);
+  }
+  function dodge(id, q, v, r) {
+    const side = Math.random() < 0.5 ? (r + 1) % 4 : (r + 3) % 4;
+    if (!tryStep(id, q, v, side) && !tryStep(id, q, v, (side + 2) % 4)) return false;
+    v.hop = 0.45;
+    return true;
   }
   function killNpc(id) {
     const q = pieces.get(id);
@@ -1555,10 +1591,20 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     if (!arena) news("Un bonhomme est tombé au combat");
   }
   function strike(id, p, tid, dmg) {
-    const q = pieces.get(tid), u = p.obj.userData;
+    const q = pieces.get(tid), u = p.obj.userData, w = p.ar && p.ar.wpn;
     p.rot = faceToward(p, q.o[0] + 0.5, q.o[2] + 0.5);
-    u.work = 0.35; u.cd = 0.9;
-    hurt(id, tid, dmg, true);
+    u.work = 0.35; u.cd = w ? w.cd : 0.9;
+    if (p.ar && p.ar.role === "z" && arena && arena.M.infect && q.ar && q.ar.t === 0 && Math.random() < arena.M.infect) return infect(tid);
+    hurt(id, tid, dmg * (u.rage > 0 ? 2 : 1), w ? w.knock : 1);
+  }
+  // Le virus : un survivant touché devient un monstre sur place
+  function infect(tid) {
+    const q = pieces.get(tid), o = q.o.slice();
+    burst(q.obj.position, "#a4d13f", 14);
+    setPiece(tid, null);
+    makeFighter(1, "z", o);
+    npcEdited();
+    news("Un survivant est infecté !");
   }
 
   // Éclats et flèches
@@ -1572,16 +1618,18 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       sparks.push({ m, v: new THREE.Vector3((Math.random() - 0.5) * 3, 1.5 + Math.random() * 2.5, (Math.random() - 0.5) * 3), life: 0.5 + Math.random() * 0.4 });
     }
   }
-  function shoot(id, p, tid, dmg) {
-    const q = pieces.get(tid), u = p.obj.userData;
+  const SHOTS = { arrow: [arrowGeo, "#2b2a33", 14, 1], magic: [sparkGeo, "#d6409f", 10, 2.2], fire: [sparkGeo, "#f76b15", 9, 3] };
+  function shoot(id, p, tid, dmg, kind = "arrow") {
+    const q = pieces.get(tid), u = p.obj.userData, [geo, col, speed, size] = SHOTS[kind];
     p.rot = faceToward(p, q.o[0] + 0.5, q.o[2] + 0.5);
-    u.work = 0.3; u.cd = 1.6;
+    u.work = 0.3;
     const from = p.obj.position.clone(), to = q.obj.position.clone();
     from.y += 1.1; to.y += 0.8;
-    const m = new THREE.Mesh(arrowGeo, plain("#2b2a33"));
+    const m = new THREE.Mesh(geo, plain(col));
+    m.scale.setScalar(size);
     m.position.copy(from);
     scene.add(m);
-    arrows.push({ m, from, to, k: 0, dur: Math.max(0.25, from.distanceTo(to) / 14), tid, src: id, dmg });
+    arrows.push({ m, from, to, k: 0, dur: Math.max(0.25, from.distanceTo(to) / speed), tid, src: id, dmg, kind, team: p.ar ? p.ar.t : -1 });
   }
   const tmpV = new THREE.Vector3();
   function fxTick(dt) {
@@ -1598,11 +1646,26 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       tmpV.y += Math.sin(a.k * Math.PI) * a.from.distanceTo(a.to) * 0.12;
       a.m.lookAt(tmpV);
       a.m.position.copy(tmpV);
+      // À mi-course, la cible voit venir le tir et peut sauter de côté
+      if (!a.seen && a.k > 0.5) {
+        a.seen = true;
+        const q = pieces.get(a.tid), ddx = a.to.x - a.from.x, ddz = a.to.z - a.from.z;
+        if (q && q.ar && q.obj.userData.t >= 1 && Math.random() < 0.4) {
+          dodge(a.tid, q, q.obj.userData, Math.abs(ddx) > Math.abs(ddz) ? (ddx > 0 ? 1 : 3) : (ddz > 0 ? 0 : 2));
+        }
+      }
       if (a.k < 1) continue;
       scene.remove(a.m);
       arrows.splice(i, 1);
+      if (a.kind === "fire") {
+        burst(a.to, "#f76b15", 12);
+        pieces.forEach((q, qid) => {
+          if (q.ar && q.ar.t !== a.team && Math.hypot(q.obj.position.x - a.to.x, q.obj.position.z - a.to.z) < 1.4) hurt(a.src, qid, a.dmg, 1);
+        });
+        continue;
+      }
       const q = pieces.get(a.tid);
-      if (q && Math.hypot(q.obj.position.x - a.to.x, q.obj.position.z - a.to.z) < 0.6) hurt(a.src, a.tid, a.dmg, Math.random() < 0.3);
+      if (q && Math.hypot(q.obj.position.x - a.to.x, q.obj.position.z - a.to.z) < 0.6) hurt(a.src, a.tid, a.dmg, a.kind === "arrow" && Math.random() < 0.3 ? 1 : 0);
     }
   }
 
@@ -1834,7 +1897,21 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
   const TEAM = [["Rouges", "#e5484d"], ["Bleus", "#3e63dd"], ["Verts", "#30a46c"], ["Jaunes", "#ffc53d"], ["Violets", "#6e56cf"],
     ["Oranges", "#f76b15"], ["Roses", "#d6409f"], ["Turquoise", "#12a594"], ["Gris", "#6d6a73"], ["Bruns", "#a0703f"]];
   // Rôles : guerrier (w), archer (a), casseur de lit (d), géant (b), monstre (z)
-  const ROLE = { w: { hp: 12, dmg: 3, j: 3 }, a: { hp: 8, dmg: 2, j: 5 }, d: { hp: 10, dmg: 2, j: 4 }, b: { hp: 150, dmg: 6, j: 3 }, z: { hp: 6, dmg: 2, j: 0 } };
+  // Armes : dégâts, recharge (s), portée au contact ou de tir (unités fines), recul en cases, outil tenu (j)
+  const WEAPONS = {
+    epee: { j: 3, dmg: 3, cd: 0.9, reach: 1.6, knock: 1 },
+    hache: { j: 4, dmg: 5, cd: 1.5, reach: 1.6, knock: 2 },
+    lance: { j: 6, dmg: 3, cd: 1, reach: 2.9, knock: 1 },
+    griffes: { j: 0, dmg: 2, cd: 0.8, reach: 1.6, knock: 0 },
+    arc: { j: 5, dmg: 2, cd: 1.6, range: 20, shot: "arrow" },
+    baguette: { j: 7, dmg: 3, cd: 2, range: 14, shot: "magic" },
+  };
+  // Rôles : guerrier (w), archer (a), casseur de lit (d), géant (b), monstre (z), mage (m)
+  const ROLE = {
+    w: { hp: 12, arms: ["epee", "hache", "lance"] }, a: { hp: 8, arms: ["arc"] }, d: { hp: 10, arms: ["hache"] },
+    b: { hp: 150, arms: ["hache"], mul: 2 }, z: { hp: 7, arms: ["griffes"] }, m: { hp: 8, arms: ["baguette"] },
+  };
+  const POWERS = ["soin", "bouclier", "boule de feu", "téléportation", "rage"];
   const ARENAS = [
     { n: "Guerre des lits", d: "Deux îles, deux lits. Tant que ton lit tient, tu reviens.", map: "islands", teams: 2, per: 5, mix: "wwwad", beds: true },
     { n: "Lits à quatre", d: "Quatre îles autour d'un centre. Casse les lits, survis.", map: "islands", teams: 4, per: 3, mix: "wad", beds: true },
@@ -1854,7 +1931,8 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     { n: "Colline à quatre", d: "Quatre équipes pour un seul sommet.", map: "hill", teams: 4, per: 3, mix: "wwa", respawn: [0, 1, 2, 3], goal: 60, timer: 240 },
     { n: "Siège du château", d: "Les assaillants doivent briser le cœur en 2 min 30.", map: "castle", teams: 2, per: [6, 10], mix: ["aaww", "wwdda"], core: true, respawn: [1], timer: 150, timeWin: 0, names: ["Défenseurs", "Assaillants"] },
     { n: "Forêt", d: "On se bat entre les arbres.", map: "forest", teams: 2, per: 6, mix: "wwa" },
-    { n: "Survie", d: "Quatre héros tiennent 90 s face aux vagues de monstres.", map: "plain", teams: 2, per: [4, 3], mix: ["wwaa", "z"], hpMul: [1.7, 1], waves: 5, timer: 90, names: ["Héros", "Monstres"], colors: ["#3e9fe8", "#2b2a33"], size: 14 },
+    { n: "Survie", d: "Quatre héros tiennent 90 s face aux vagues de monstres.", map: "plain", teams: 2, per: [4, 3], mix: ["wwaa", "z"], hpMul: [1.7, 1], waves: 5, infect: 0.35, timer: 90, names: ["Héros", "Monstres"], colors: ["#3e9fe8", "#2b2a33"], size: 14 },
+    { n: "Virus", d: "Un seul infecté. Chaque contact peut changer un survivant en monstre.", map: "plain", teams: 2, per: [10, 2], mix: ["wwam", "z"], hpMul: [1, 2], infect: 0.6, respawn: [1], timer: 120, timeWin: 0, names: ["Survivants", "Infectés"], colors: ["#3e9fe8", "#6b8f3a"], size: 14 },
     { n: "Pluie de flèches", d: "Quatre équipes, rien que des archers.", map: "plain", teams: 4, per: 4, mix: "a" },
   ];
   const put = (L, x, y, z, color, shape = "cube", extra) => L.push(Object.assign({ shape, o: [x * 2, y * 2, z * 2], rot: 0, color }, extra));
@@ -1929,19 +2007,24 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
   };
   let arena = null;
   const bedAlive = (T) => T.bed !== null && pieces.has(T.bed);
+  function makeFighter(t, role, o) {
+    const st = ROLE[role], M = arena.M, wpn = WEAPONS[st.arms[Math.floor(Math.random() * st.arms.length)]];
+    const id = newId();
+    setPiece(id, { shape: "npc", o, rot: 0, color: arena.teams[t].color, v: Math.floor(Math.random() * 4096), j: wpn.j, w: null });
+    const p = pieces.get(id), u = p.obj.userData;
+    p.ar = { t, role, wpn, mul: st.mul || 1, pw: role === "z" ? null : POWERS[Math.floor(Math.random() * POWERS.length)] };
+    u.hp = u.max = Math.round(st.hp * (M.hpMul ? M.hpMul[t] : 1));
+    u.pcd = 3 + Math.random() * 5;
+    if (role === "b") p.obj.scale.setScalar(2);
+    return id;
+  }
   function spawnFighter(t, role) {
-    const [sx, sy, sz] = arena.spawns[t], st = ROLE[role], M = arena.M;
+    if (role === "w" && Math.random() < 0.15) role = "m";
+    const [sx, sy, sz] = arena.spawns[t];
     for (let rad = 0; rad < 10; rad++) for (let dx = -rad; dx <= rad; dx++) for (let dz = -rad; dz <= rad; dz++) {
       if (Math.max(Math.abs(dx), Math.abs(dz)) !== rad) continue;
       const o = [sx + dx, sy, sz + dz];
-      if (!freeFor(null, ...o) || !supported(null, ...o)) continue;
-      const id = newId();
-      setPiece(id, { shape: "npc", o, rot: 0, color: arena.teams[t].color, v: Math.floor(Math.random() * 4096), j: st.j, w: null });
-      const p = pieces.get(id), u = p.obj.userData;
-      p.ar = { t, role, dmg: st.dmg };
-      u.hp = u.max = Math.round(st.hp * (M.hpMul ? M.hpMul[t] : 1));
-      if (role === "b") p.obj.scale.setScalar(2);
-      return;
+      if (freeFor(null, ...o) && supported(null, ...o)) return makeFighter(t, role, o);
     }
   }
   function startArena(i) {
@@ -1995,16 +2078,31 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       .some(([r]) => tryStep(id, p, u, r));
   }
   // Cerveau d'un combattant : viser, frapper ou tirer, casser le lit adverse, tenir la colline
+  // Cerveau d'un combattant : il vise l'ennemi le plus faible à portée, garde ses distances s'il tire,
+  // se soigne ou se replie vers un allié quand il est mal en point, sort son pouvoir au bon moment,
+  // casse les lits adverses et tient la colline.
   function arenaTurn(id, p, u) {
-    const A = arena, me = p.ar;
+    const A = arena, me = p.ar, w = me.wpn;
     if (!A || A.over) { u.wait = 1 + Math.random(); u.look = (Math.random() - 0.5) * 2; return; }
-    const foe = nearestNpc(id, p, (q) => q.ar && q.ar.t !== me.t, 80);
+    let foe = null, best = 1e9;
+    pieces.forEach((o, oid) => {
+      if (!o.ar || o.ar.t === me.t) return;
+      const sc = gap(p, o) + o.obj.userData.hp * 0.35;
+      if (sc < best) { best = sc; foe = oid; }
+    });
     const q = foe && pieces.get(foe), d = q ? gap(p, q) : 1e9;
-    if (me.role === "a" && q) {
-      if (d < 3.5 && stepAway(id, p, u, q)) return;
-      if (d <= 20) { if (u.cd <= 0) shoot(id, p, foe, me.dmg); u.wait = 0.25; return; }
+    if (q && usePower(id, p, u, q, foe, d)) return;
+    if (q && d < 8 && u.hp < u.max * 0.35 && me.role !== "b" && me.role !== "z") {
+      const ally = nearestNpc(id, p, (o) => o.ar && o.ar.t === me.t && o.obj.userData.hp > o.obj.userData.max * 0.5, 30);
+      const a = ally && pieces.get(ally);
+      if (a && gap(p, a) > 2 && stepToward(id, p, u, a.o[0] + 0.5, a.o[2] + 0.5)) return;
+      if (stepAway(id, p, u, q)) return;
     }
-    if (me.role !== "a" && q && d <= 1.6) { if (u.cd <= 0) strike(id, p, foe, me.dmg); u.wait = 0.12; return; }
+    if (w.range && q) {
+      if (d < 3.5 && stepAway(id, p, u, q)) return;
+      if (d <= w.range) { if (u.cd <= 0) { shoot(id, p, foe, w.dmg, w.shot); u.cd = w.cd; } u.wait = 0.25; return; }
+    }
+    if (!w.range && q && d <= w.reach) { if (u.cd <= 0) strike(id, p, foe, w.dmg * me.mul); u.wait = 0.12; return; }
     let bed = null, bd = 1e9;
     A.teams.forEach((T, t) => {
       if (t === me.t || !bedAlive(T)) return;
@@ -2026,6 +2124,31 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     if (q && stepToward(id, p, u, q.o[0] + 0.5, q.o[2] + 0.5)) return;
     tryStep(id, p, u, Math.floor(Math.random() * 4)); // bloqué : un pas de côté
     u.wait = 0.3;
+  }
+  function usePower(id, p, u, q, foe, d) {
+    const pw = p.ar.pw, pos = p.obj.position;
+    if (!pw || u.pcd > 0) return false;
+    if (pw === "soin" && u.hp < u.max * 0.5) { u.hp = Math.min(u.max, u.hp + 6); burst(pos, "#30a46c", 10); u.pcd = 12; return true; }
+    if (pw === "bouclier" && d <= 2 && u.hp < u.max * 0.7) { u.shield = 2.5; burst(pos, "#7ce2fe", 10); u.pcd = 11; return true; }
+    if (pw === "rage" && d <= 2) { u.rage = 4; burst(pos, "#e5484d", 10); u.pcd = 12; return true; }
+    if (pw === "boule de feu" && d > 3 && d < 16) { shoot(id, p, foe, 4, "fire"); u.pcd = 8; return true; }
+    if (pw === "téléportation" && d > 5 && d < 20) {
+      for (let r = 0; r < 4; r++) {
+        const o = [q.o[0] + DIRS[r][0], q.o[1], q.o[2] + DIRS[r][1]];
+        if (!freeFor(id, ...o) || !supported(id, ...o)) continue;
+        burst(pos, "#6e56cf", 10);
+        cellsOf("npc", p.o).forEach((k) => occ.delete(k));
+        p.o = o;
+        cellsOf("npc", o).forEach((k) => occ.set(k, id));
+        npcSpot(o, pos);
+        u.from.copy(pos); u.to.copy(pos); u.t = 1;
+        burst(pos, "#6e56cf", 10);
+        p.rot = faceToward(p, q.o[0] + 0.5, q.o[2] + 0.5);
+        u.pcd = 9;
+        return true;
+      }
+    }
+    return false;
   }
   const clock2 = (t) => Math.floor(t / 60) + ":" + String(Math.floor(t % 60)).padStart(2, "0");
   function teamCounts() {

@@ -150,6 +150,31 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
 .chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .desc { margin: 0; flex: 1 1 180px; min-width: 0; font-size: 12.5px; line-height: 1.35; color: var(--muted); }
 @media (max-width: 420px) { .pos-wrap { display: none; } .tabs button { padding: 7px 10px; font-size: 13.5px; } .icons .tool { width: 34px; } }
+.sel { font: 500 13.5px var(--font-ui); color: var(--fg); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 5px 10px; }
+.hud {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom, 0px)); z-index: 5;
+  width: min(720px, calc(100% - 32px)); box-sizing: border-box; border-radius: 18px; padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.hud-info { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+#hud-news { color: var(--fg); font-weight: 500; text-align: right; }
+.hud-teams { display: flex; flex-wrap: wrap; gap: 6px; }
+.ht { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px 4px 6px; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.ht i { width: 12px; height: 12px; border-radius: 4px; background: var(--c); }
+.ht em { font-style: normal; font-size: 11.5px; color: var(--muted); }
+.ht.out { opacity: 0.4; text-decoration: line-through; }
+.hud-end { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.hud-end strong { font-size: 18px; }
+.hud-end .pill { flex: none; }
+body.arena .dock { visibility: hidden; }
+.arenas { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.arena-card {
+  border: 1px solid var(--line); background: transparent; border-radius: 12px; padding: 10px; text-align: left;
+  display: flex; flex-direction: column; gap: 3px; font-size: 14.5px; font-weight: 500;
+}
+.arena-card small { color: var(--muted); font-size: 12px; font-weight: 400; line-height: 1.3; }
+.arena-card:hover { border-color: var(--accent); }
+@media (max-width: 380px) { .arenas { grid-template-columns: 1fr; } }
 .opts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .chip {
   border: 1px solid var(--line); background: transparent; border-radius: 999px;
@@ -295,6 +320,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     </button>
     <div class="menu panel" id="menu" hidden>
       <button id="m-title" class="home-btn">Menu principal <small>mondes, aide</small></button>
+      <button id="m-arenas">Arènes <small>20 combats</small></button>
       <p class="sec">Vue</p>
       <button id="m-home">Aller à ma construction</button>
       <button id="m-view">Revenir au centre <small>0, 0</small></button>
@@ -398,6 +424,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
         </button>
       </div>
       <div class="chips">
+        <select id="bp" class="sel" aria-label="Ce que construit le bâtisseur" hidden></select>
         <p class="desc" id="job-desc"></p>
         <button class="chip" id="births" aria-pressed="true" title="Deux bonshommes de même couleur font un bébé">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>
@@ -409,6 +436,15 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
   </div>
 </div>
 
+<div class="hud panel" id="hud" hidden>
+  <div class="hud-info"><span id="hud-info"></span><span id="hud-news"></span></div>
+  <div class="hud-teams" id="hud-teams"></div>
+  <div class="hud-end" id="hud-end" hidden>
+    <strong id="hud-win"></strong>
+    <div class="chips"><button class="pill primary" id="hud-again">Rejouer</button><button class="pill" id="hud-more">Autres arènes</button></div>
+  </div>
+</div>
+
 <div class="title" id="title" role="dialog" aria-label="Menu principal" hidden>
   <div class="title-card panel">
     <h1 class="logo" id="logo" aria-label="Boîte à Blocs"></h1>
@@ -417,6 +453,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     <div class="t-view" id="t-main">
       <button class="t-btn primary" id="t-continue"><span>Continuer</span><small id="t-continue-name"></small></button>
       <button class="t-btn" id="t-new"><span>Nouveau monde</span></button>
+      <button class="t-btn" id="t-arena"><span>Arènes</span><small>20 combats à regarder</small></button>
       <button class="t-btn" id="t-worlds"><span>Mes mondes</span><small id="t-worlds-count"></small></button>
       <button class="t-btn" id="t-help"><span>Comment jouer</span></button>
     </div>
@@ -429,6 +466,11 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
         <button class="choice" data-start="sample" role="radio" aria-checked="false">Avec l'exemple<small>Une maison, un étang et cinq bonshommes.</small></button>
       </div>
       <button class="t-btn primary" id="t-create"><span>Créer et jouer</span></button>
+    </div>
+
+    <div class="t-view" id="t-arena-view" hidden>
+      <div class="t-head"><button class="icon-btn back" data-back aria-label="Retour"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button><h2>Arènes</h2></div>
+      <div class="arenas" id="t-arenas"></div>
     </div>
 
     <div class="t-view" id="t-worlds-view" hidden>
@@ -655,7 +697,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     Math.abs(o[0]) < LIMIT && Math.abs(o[2]) < LIMIT;
   const dataOf = (id) => {
     const p = pieces.get(id);
-    return p ? { shape: p.shape, o: p.o.slice(), rot: p.rot, color: p.color, v: p.v, j: p.j, w: p.w ? p.w.slice() : null } : null;
+    return p ? { shape: p.shape, o: p.o.slice(), rot: p.rot, color: p.color, v: p.v, j: p.j, w: p.w ? p.w.slice() : null, b: p.b } : null;
   };
 
   const buckets = {};
@@ -734,6 +776,10 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       part(box(0.04, 0.04, 0.3), plain("#a0703f"), 0, -0.42, 0.15, armR);
       part(box(0.22, 0.11, 0.11), plain("#2b2a33"), 0, -0.42, 0.31, armR);
     }
+    if (d.j === 5) { // arc
+      part(box(0.03, 0.46, 0.04), plain("#a0703f"), 0, -0.42, 0.14, armR);
+      part(box(0.015, 0.42, 0.015), plain("#f2f0eb"), 0, -0.42, 0.08, armR);
+    }
     if (d.j === 2) {
       part(box(0.04, 0.04, 0.28), plain("#a0703f"), 0, -0.42, 0.14, armR);
       part(box(0.08, 0.08, 0.09), shirt, 0, -0.42, 0.31, armR);
@@ -755,7 +801,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     bar.visible = false;
     bar.raycast = () => {};
     g.add(bar);
-    g.userData = { bar, hp: HP_MAX, cd: 0, love: 25 + Math.random() * 35, foe: null, legL, legR, armL, armR, head, from: new THREE.Vector3(), to: new THREE.Vector3(), t: 1, wait: Math.random() * 2, phase: 0, look: 0, work: 0, stuck: 0 };
+    g.userData = { bar, hp: HP_MAX, max: HP_MAX, fall: 0, cd: 0, love: 25 + Math.random() * 35, foe: null, legL, legR, armL, armR, head, from: new THREE.Vector3(), to: new THREE.Vector3(), t: 1, wait: Math.random() * 2, phase: 0, look: 0, work: 0, stuck: 0 };
     npcGroup.add(g);
     return g;
   }
@@ -802,7 +848,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       npcSpot(o, obj.position);
       obj.rotation.y = (d.rot || 0) * Math.PI / 2;
       obj.userData.to.copy(obj.position);
-      pieces.set(id, { shape: "npc", o, rot: d.rot || 0, color: d.color, v: d.v | 0, j: d.j | 0, w: d.w ? d.w.slice() : null, obj });
+      pieces.set(id, { shape: "npc", o, rot: d.rot || 0, color: d.color, v: d.v | 0, j: d.j | 0, w: d.w ? d.w.slice() : null, b: d.b ?? -1, obj });
       cellsOf("npc", o).forEach((k) => occ.set(k, id));
       npcTotal++;
       return;
@@ -863,7 +909,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
   // (blocs entiers uniquement) se relit toujours.
   const serialize = () => [...pieces.values()].map((p) => {
     const row = [SHAPES[p.shape].code, ...p.o, p.rot, p.color.slice(1)];
-    if (p.shape === "npc") row.push(p.v, p.j, p.w || 0);
+    if (p.shape === "npc") row.push(p.v, p.j, p.w || 0, p.b ?? -1);
     return row;
   });
   function parseList(list) {
@@ -873,7 +919,8 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       if (!Array.isArray(e)) continue;
       const d = typeof e[0] === "string"
         ? { shape: BY_CODE[e[0]], o: [e[1], e[2], e[3]], rot: (((e[4] | 0) % 4) + 4) % 4, color: "#" + String(e[5]).toLowerCase(), v: e[6] | 0,
-            j: Math.min(4, Math.max(0, e[7] | 0)), w: Array.isArray(e[8]) && e[8].length === 5 && e[8].every(Number.isInteger) ? e[8] : null }
+            j: Math.min(4, Math.max(0, e[7] | 0)), w: Array.isArray(e[8]) && e[8].length >= 5 && e[8].length <= 7 && e[8].every(Number.isInteger) ? e[8] : null,
+            b: Number.isInteger(e[9]) ? e[9] : -1 }
         : { shape: "cube", o: [e[0] * 2, e[1] * 2, e[2] * 2], rot: 0, color: "#" + String(e[3]).toLowerCase() };
       if (d.shape && /^#[0-9a-f]{6}$/.test(d.color) && inWorld(d.shape, d.o)) out.push(d);
     }
@@ -1005,7 +1052,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
   function rotate() { rotOffset = (rotOffset + 1) % 4; updateHover(); }
   const JOB_INFO = [
       "Le promeneur explore le monde.",
-      "Le bâtisseur construit une cabane devant lui.",
+      "Le bâtisseur construit ce que tu choisis, ou au hasard une suite d'ouvrages.",
       "Le peintre repeint de sa couleur les blocs qu'il touche.",
       "Le guerrier traque et attaque les bonshommes d'une autre couleur.",
       "Le démolisseur casse les blocs autour de lui.",
@@ -1016,6 +1063,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
   $("births").onclick = () => { births = !births; $("births").setAttribute("aria-pressed", births); };
   function setJob(j) {
     job = j;
+    $("bp").hidden = j !== 1;
     $("job-desc").textContent = JOB_INFO[j] + " Sa couleur est son équipe.";
     document.querySelectorAll("[data-job]").forEach((b) => b.setAttribute("aria-pressed", +b.dataset.job === j));
   }
@@ -1210,7 +1258,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
   // Un bonhomme posé regarde la caméra, une pente monte en s'en éloignant : même quart de tour
   function plannedPiece(t) {
     const d = { shape, o: placeAt(t, shape), rot: TURNS.has(shape) ? slopeRot() : 0, color };
-    if (shape === "npc") Object.assign(d, { v: Math.floor(Math.random() * 4096), j: job, w: null });
+    if (shape === "npc") Object.assign(d, { v: Math.floor(Math.random() * 4096), j: job, w: null, b: +$("bp").value });
     return d;
   }
 
@@ -1296,7 +1344,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     downs.delete(e.pointerId);
     const multi = gestureMulti;
     if (!downs.size) gestureMulti = false;
-    if (!d || multi || e.type === "pointercancel" || d.button !== 0 || titleOpen) return;
+    if (!d || multi || e.type === "pointercancel" || d.button !== 0 || titleOpen || arena) return;
     const moved = Math.hypot(e.clientX - d.x, e.clientY - d.y);
     if (moved > 7 || performance.now() - d.t > 600) return;
     const mode = d.shift ? "erase" : d.alt ? "pick" : tool;
@@ -1382,7 +1430,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       if (p.shape !== "npc") return;
       const u = p.obj.userData;
       if (u.t < 1) {
-        u.t = Math.min(1, u.t + dt / STEP_TIME);
+        u.t = Math.min(1, u.t + dt / (u.fast ? 0.07 : STEP_TIME));
         p.obj.position.lerpVectors(u.from, u.to, u.t);
         p.obj.position.y += Math.sin(u.t * Math.PI) * 0.06;
         u.phase += dt * 11;
@@ -1403,15 +1451,22 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       if (u.t < 1) return;
       const [x, y, z] = p.o;
       // Plus rien dessous : il tombe d'un cran
-      if (!supported(id, x, y, z) && freeFor(id, x, y - 1, z)) return moveNpc(id, p, [x, y - 1, z]);
+      // Dans une arène, une chute de plus de 4 blocs est mortelle
+      if (!supported(id, x, y, z) && freeFor(id, x, y - 1, z)) {
+        u.fall++; u.fast = true;
+        if (p.ar && u.fall > 8) return killNpc(id);
+        return moveNpc(id, p, [x, y - 1, z]);
+      }
+      u.fall = 0; u.fast = false;
       if (!npcWalk) return;
       u.cd -= dt; u.love -= dt;
-      if (u.hp < HP_MAX) u.hp = Math.min(HP_MAX, u.hp + dt * 0.25);
-      u.bar.visible = u.hp < HP_MAX;
-      if (u.bar.visible) { u.bar.scale.x = 0.5 * u.hp / HP_MAX; u.bar.material.color.set(u.hp > HP_MAX / 2 ? 0x30a46c : 0xe5484d); }
+      if (!p.ar && u.hp < u.max) u.hp = Math.min(u.max, u.hp + dt * 0.25);
+      u.bar.visible = u.hp < u.max;
+      if (u.bar.visible) { u.bar.scale.x = 0.5 * Math.max(0, u.hp) / u.max; u.bar.material.color.set(u.hp > u.max / 2 ? 0x30a46c : 0xe5484d); }
       u.wait -= dt;
       if (u.wait > 0) return;
       u.look = 0;
+      if (p.ar) return arenaTurn(id, p, u);
       if (u.foe && defendTurn(id, p, u)) return;
       if (birthTurn(id, p, u)) return;
       if (p.j === 3 && warriorTurn(id, p, u)) return;
@@ -1462,7 +1517,10 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
   function news(text) {
     if (performance.now() - lastNews < 1500) return;
     lastNews = performance.now();
-    showHint(text, 2200);
+    if (!arena) return showHint(text, 2200);
+    $("hud-news").textContent = text;
+    clearTimeout(news.t);
+    news.t = setTimeout(() => ($("hud-news").textContent = ""), 2500);
   }
   const gap = (a, b) => Math.hypot(a.o[0] - b.o[0], a.o[2] - b.o[2]) + Math.abs(a.o[1] - b.o[1]);
   function nearestNpc(id, p, test, max) {
@@ -1474,16 +1532,80 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     });
     return best;
   }
+  // Un coup : dégâts, éclats, recul d'un cran (qui peut faire tomber d'un pont)
+  function hurt(src, tid, dmg, knock) {
+    const q = pieces.get(tid);
+    if (!q) return;
+    const v = q.obj.userData, s = src && pieces.get(src);
+    v.hp -= dmg; v.foe = src; v.bar.visible = true;
+    burst(q.obj.position, q.color, 4);
+    if (knock && s && v.t >= 1) {
+      const dir = DIRS[s.rot], o = [q.o[0] + dir[0], q.o[1], q.o[2] + dir[1]];
+      if (freeFor(tid, ...o)) moveNpc(tid, q, o);
+    }
+    if (v.hp <= 0) killNpc(tid);
+  }
+  function killNpc(id) {
+    const q = pieces.get(id);
+    if (!q) return;
+    burst(q.obj.position, q.color, 14);
+    if (q.ar && arena) arenaDeath(q);
+    setPiece(id, null);
+    npcEdited();
+    if (!arena) news("Un bonhomme est tombé au combat");
+  }
   function strike(id, p, tid, dmg) {
-    const q = pieces.get(tid), v = q.obj.userData, u = p.obj.userData;
+    const q = pieces.get(tid), u = p.obj.userData;
     p.rot = faceToward(p, q.o[0] + 0.5, q.o[2] + 0.5);
     u.work = 0.35; u.cd = 0.9;
-    v.hp -= dmg; v.foe = id; v.bar.visible = true;
-    if (v.hp > 0) return;
-    setPiece(tid, null);
-    npcEdited();
-    news("Un bonhomme est tombé au combat");
+    hurt(id, tid, dmg, true);
   }
+
+  // Éclats et flèches
+  const sparks = [], arrows = [];
+  const sparkGeo = new THREE.BoxGeometry(0.09, 0.09, 0.09), arrowGeo = new THREE.BoxGeometry(0.04, 0.04, 0.5);
+  function burst(pos, color, n) {
+    for (let i = 0; i < n && sparks.length < 300; i++) {
+      const m = new THREE.Mesh(sparkGeo, plain(color));
+      m.position.copy(pos).y += 0.8;
+      scene.add(m);
+      sparks.push({ m, v: new THREE.Vector3((Math.random() - 0.5) * 3, 1.5 + Math.random() * 2.5, (Math.random() - 0.5) * 3), life: 0.5 + Math.random() * 0.4 });
+    }
+  }
+  function shoot(id, p, tid, dmg) {
+    const q = pieces.get(tid), u = p.obj.userData;
+    p.rot = faceToward(p, q.o[0] + 0.5, q.o[2] + 0.5);
+    u.work = 0.3; u.cd = 1.6;
+    const from = p.obj.position.clone(), to = q.obj.position.clone();
+    from.y += 1.1; to.y += 0.8;
+    const m = new THREE.Mesh(arrowGeo, plain("#2b2a33"));
+    m.position.copy(from);
+    scene.add(m);
+    arrows.push({ m, from, to, k: 0, dur: Math.max(0.25, from.distanceTo(to) / 14), tid, src: id, dmg });
+  }
+  const tmpV = new THREE.Vector3();
+  function fxTick(dt) {
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const sp = sparks[i];
+      sp.v.y -= 9.8 * dt;
+      sp.m.position.addScaledVector(sp.v, dt);
+      if ((sp.life -= dt) <= 0) { scene.remove(sp.m); sparks.splice(i, 1); }
+    }
+    for (let i = arrows.length - 1; i >= 0; i--) {
+      const a = arrows[i];
+      a.k = Math.min(1, a.k + dt / a.dur);
+      tmpV.copy(a.from).lerp(a.to, a.k);
+      tmpV.y += Math.sin(a.k * Math.PI) * a.from.distanceTo(a.to) * 0.12;
+      a.m.lookAt(tmpV);
+      a.m.position.copy(tmpV);
+      if (a.k < 1) continue;
+      scene.remove(a.m);
+      arrows.splice(i, 1);
+      const q = pieces.get(a.tid);
+      if (q && Math.hypot(q.obj.position.x - a.to.x, q.obj.position.z - a.to.z) < 0.6) hurt(a.src, a.tid, a.dmg, Math.random() < 0.3);
+    }
+  }
+
   // Tout bonhomme frappé riposte tant que l'agresseur reste au contact
   function defendTurn(id, p, u) {
     const q = pieces.get(u.foe);
@@ -1526,7 +1648,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
   }
   // Deux bonshommes de même couleur qui se croisent font un bébé : il hérite de la couleur et d'un des métiers
   function birthTurn(id, p, u) {
-    if (!births || u.love > 0 || npcTotal >= POP_MAX) return false;
+    if (!births || arena || u.love > 0 || npcTotal >= POP_MAX) return false;
     const m = nearestNpc(id, p, (q) => q.color === p.color && q.obj.userData.love <= 0, 3);
     if (!m) return false;
     const q = pieces.get(m);
@@ -1544,34 +1666,122 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     return false;
   }
 
-  // Bâtisseur : une cabane de 3 × 3 blocs devant lui, porte comprise, avec un toit en pente.
-  // Il marche jusqu'à chaque pièce et la pose ; s'il n'arrive pas à s'approcher, il la lance.
+  // Bâtisseur : il suit un plan, pièce par pièce, de bas en haut. S'il n'arrive pas à s'approcher, il lance la pièce.
   const shade = (hex, k) => "#" + tmpC.set(hex).multiplyScalar(k).getHexString();
-  function hutPlan(w, color) {
-    const [ax, ay, az, r] = w;
-    const f = DIRS[r], ri = (r + 3) % 4, rt = DIRS[ri], li = (r + 1) % 4;
-    const at = (lx, ly, lz) => [
-      2 * (ax + f[0] * (lz + 1) + rt[0] * (lx - 1)), 2 * (ay + ly), 2 * (az + f[1] * (lz + 1) + rt[1] * (lx - 1)),
-    ];
-    const ring = [[0, 0], [0, 1], [0, 2], [1, 2], [2, 2], [2, 1], [2, 0]]; // (1, 0) reste vide : la porte
-    const plan = [];
-    for (let ly = 0; ly < 2; ly++) ring.forEach(([lx, lz]) => plan.push({ shape: "cube", o: at(lx, ly, lz), rot: 0, color }));
-    const roof = shade(color, 0.72);
-    for (let lz = 0; lz < 3; lz++) {
-      plan.push({ shape: "slope", o: at(0, 2, lz), rot: (ri + 2) % 4, color: roof });
-      plan.push({ shape: "slope", o: at(2, 2, lz), rot: (li + 2) % 4, color: roof });
-      plan.push({ shape: "cube", o: at(1, 2, lz), rot: 0, color: roof });
+  const PAL = { s: "#c9c6bd", w: "#f2f0eb", g: "#7ce2fe", b: "#a0703f", l: "#30a46c", y: "#e8c9a0", t: "#ffc53d", k: "#f1c27d", a: "#3e9fe8" };
+  // Plans en blocs vus du bâtisseur : lx vers sa droite, ly vers le haut, lz devant lui.
+  // Entrée : [lx, ly, lz, forme (c bloc, s demi, p pente), sens de montée de la pente (0 devant, 1 droite, 2 derrière, 3 gauche), couleur]
+  const ring = (o, x0, x1, z0, z1, y, c, skip) => {
+    for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
+      if ((x === x0 || x === x1 || z === z0 || z === z1) && !(skip && skip(x, z))) o.push([x, y, z, "c", 0, c]);
     }
-    return plan;
+  };
+  const BLUEPRINTS = [
+    ["Cabane", () => {
+      const o = [];
+      for (let y = 0; y < 2; y++) ring(o, -1, 1, 0, 2, y, "m", (x, z) => x === 0 && z === 0);
+      for (let z = 0; z < 3; z++) o.push([-1, 2, z, "p", 1, "d"], [1, 2, z, "p", 3, "d"], [0, 2, z, "c", 0, "d"]);
+      return o;
+    }],
+    ["Tour", () => {
+      const o = [];
+      for (let y = 0; y < 6; y++) ring(o, -1, 1, 0, 2, y, y === 3 ? "m" : "s", (x, z) => y < 2 && x === 0 && z === 0);
+      ring(o, -1, 1, 0, 2, 6, "m", (x, z) => (x + z + 10) % 2 === 1);
+      return o;
+    }],
+    ["Maison", () => {
+      const o = [];
+      const win = (x, z, y) => y === 1 && (x === -2 || x === 2) && (z === 1 || z === 2);
+      for (let y = 0; y < 3; y++) ring(o, -2, 2, 0, 3, y, "w", (x, z) => (x === 0 && z === 0 && y < 2) || win(x, z, y));
+      [[-2, 1], [-2, 2], [2, 1], [2, 2]].forEach(([x, z]) => o.push([x, 1, z, "c", 0, "g"]));
+      for (let z = 0; z <= 3; z++) {
+        o.push([-2, 3, z, "p", 1, "m"], [2, 3, z, "p", 3, "m"], [-1, 4, z, "p", 1, "m"], [1, 4, z, "p", 3, "m"], [0, 5, z, "s", 0, "m"]);
+        for (let x = -1; x <= 1; x++) o.push([x, 3, z, "c", 0, "w"]);
+        o.push([0, 4, z, "c", 0, "w"]);
+      }
+      return o;
+    }],
+    ["Mur fortifié", () => {
+      const o = [];
+      for (let x = -3; x <= 3; x++) {
+        for (let y = 0; y < 3; y++) o.push([x, y, 1, "c", 0, "s"]);
+        if (x % 2 === 0) o.push([x, 3, 1, "c", 0, "m"]);
+      }
+      return o;
+    }],
+    ["Pyramide", () => {
+      const o = [];
+      for (let L = 0; L < 4; L++) for (let x = -3 + L; x <= 3 - L; x++) for (let z = L; z <= 6 - L; z++) o.push([x, L, z, "c", 0, L === 3 ? "t" : "y"]);
+      return o;
+    }],
+    ["Arbre", () => {
+      const o = [];
+      for (let y = 0; y < 4; y++) o.push([0, y, 2, "c", 0, "b"]);
+      for (let x = -2; x <= 2; x++) for (let y = 3; y <= 6; y++) for (let z = 0; z <= 4; z++) {
+        if (x * x + (y - 4.5) ** 2 + (z - 2) ** 2 < 5.2 && !(x === 0 && z === 2 && y < 4)) o.push([x, y, z, "c", 0, "l"]);
+      }
+      return o;
+    }],
+    ["Pont", () => {
+      const o = [];
+      for (let x = -1; x <= 1; x++) {
+        o.push([x, 0, 0, "p", 0, "b"], [x, 1, 1, "p", 0, "b"], [x, 1, 5, "p", 2, "b"], [x, 0, 6, "p", 2, "b"]);
+        for (let z = 2; z <= 4; z++) o.push([x, 2, z, "s", 0, "b"]);
+      }
+      [[-1, 2], [1, 2], [-1, 4], [1, 4]].forEach(([x, z]) => o.push([x, 0, z, "c", 0, "s"], [x, 1, z, "c", 0, "s"]));
+      return o;
+    }],
+    ["Statue", () => {
+      const o = [];
+      for (let z = 1; z <= 2; z++) {
+        for (let y = 0; y < 3; y++) o.push([-1, y, z, "c", 0, "d"], [1, y, z, "c", 0, "d"]);
+        for (let y = 3; y < 6; y++) for (let x = -2; x <= 2; x++) o.push([x, y, z, "c", 0, Math.abs(x) === 2 && y === 3 ? "k" : "m"]);
+        for (let y = 6; y < 9; y++) for (let x = -1; x <= 1; x++) o.push([x, y, z, "c", 0, y === 8 ? "b" : "k"]);
+      }
+      return o;
+    }],
+    ["Fontaine", () => {
+      const o = [];
+      ring(o, -2, 2, 0, 4, 0, "s");
+      for (let x = -1; x <= 1; x++) for (let z = 1; z <= 3; z++) o.push([x, 0, z, "s", 0, "a"]);
+      o.push([0, 1, 2, "c", 0, "s"], [0, 2, 2, "c", 0, "s"], [0, 3, 2, "s", 0, "a"]);
+      return o;
+    }],
+    ["Château", () => {
+      const o = [];
+      for (let y = 0; y < 2; y++) ring(o, -3, 3, 0, 6, y, "s", (x, z) => x === 0 && z === 0);
+      ring(o, -3, 3, 0, 6, 2, "s", (x, z) => (x + z + 100) % 2 === 1 || (x === 0 && z === 0));
+      [[-3, 0], [3, 0], [-3, 6], [3, 6]].forEach(([x, z]) => { for (let y = 2; y < 5; y++) o.push([x, y, z, "c", 0, y === 4 ? "m" : "s"]); });
+      return o;
+    }],
+  ];
+  function planFor(w, color) {
+    const [ax, ay, az, r, , bp] = w;
+    const f = DIRS[r], rt = DIRS[(r + 3) % 4], toWorld = [r, (r + 3) % 4, (r + 2) % 4, (r + 1) % 4];
+    const col = { m: color, d: shade(color, 0.72), ...PAL };
+    return BLUEPRINTS[bp || 0][1]().sort((a, b) => a[1] - b[1]).map(([lx, ly, lz, sh, ld, c]) => ({
+      shape: sh === "p" ? "slope" : sh === "s" ? "slab" : "cube",
+      o: [2 * (ax + f[0] * (lz + 1) + rt[0] * lx), 2 * (ay + ly), 2 * (az + f[1] * (lz + 1) + rt[1] * lx)],
+      rot: sh === "p" ? (toWorld[ld] + 2) % 4 : 0,
+      color: col[c],
+    }));
   }
   function builderTurn(id, p, u) {
-    if (!p.w) p.w = [Math.floor(p.o[0] / 2), Math.ceil(p.o[1] / 2), Math.floor(p.o[2] / 2), p.rot, 0];
-    const plan = hutPlan(p.w, p.color);
+    const pickBp = () => (p.b >= 0 ? p.b : Math.floor(Math.random() * BLUEPRINTS.length));
+    if (!p.w) p.w = [Math.floor(p.o[0] / 2), Math.ceil(p.o[1] / 2), Math.floor(p.o[2] / 2), p.rot, 0, pickBp(), 1];
+    const plan = planFor(p.w, p.color);
     let k = p.w[4];
     // Une case déjà prise par un bloc : il passe à la pièce suivante
     while (k < plan.length && cellsOf(plan[k].shape, plan[k].o).some((c) => occ.has(c) && pieces.get(occ.get(c)).shape !== "npc")) k++;
     p.w[4] = k;
-    if (k >= plan.length) return false; // cabane finie : il se promène
+    if (k >= plan.length) {
+      // Plan fini. En mode « au hasard », il repart construire autre chose plus loin (5 ouvrages au plus)
+      if (p.b < 0 && (p.w[6] || 1) < 5 && Math.random() < 0.04) {
+        p.w = [Math.floor(p.o[0] / 2), Math.ceil(p.o[1] / 2), Math.floor(p.o[2] / 2), p.rot, 0, pickBp(), (p.w[6] || 1) + 1];
+        return true;
+      }
+      return false;
+    }
     const d = plan[k];
     const tx = d.o[0] + 1, tz = d.o[2] + 1;
     const blocked = cellsOf(d.shape, d.o).some((c) => occ.has(c));
@@ -1618,6 +1828,265 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
   }
   setSim(true);
   $("sim").onclick = () => setSim(!npcWalk);
+
+  // ---------- Arènes ----------
+  // Des combats tout faits à regarder : une carte, des équipes, des règles.
+  const TEAM = [["Rouges", "#e5484d"], ["Bleus", "#3e63dd"], ["Verts", "#30a46c"], ["Jaunes", "#ffc53d"], ["Violets", "#6e56cf"],
+    ["Oranges", "#f76b15"], ["Roses", "#d6409f"], ["Turquoise", "#12a594"], ["Gris", "#6d6a73"], ["Bruns", "#a0703f"]];
+  // Rôles : guerrier (w), archer (a), casseur de lit (d), géant (b), monstre (z)
+  const ROLE = { w: { hp: 12, dmg: 3, j: 3 }, a: { hp: 8, dmg: 2, j: 5 }, d: { hp: 10, dmg: 2, j: 4 }, b: { hp: 150, dmg: 6, j: 3 }, z: { hp: 6, dmg: 2, j: 0 } };
+  const ARENAS = [
+    { n: "Guerre des lits", d: "Deux îles, deux lits. Tant que ton lit tient, tu reviens.", map: "islands", teams: 2, per: 5, mix: "wwwad", beds: true },
+    { n: "Lits à quatre", d: "Quatre îles autour d'un centre. Casse les lits, survis.", map: "islands", teams: 4, per: 3, mix: "wad", beds: true },
+    { n: "Lits et archers", d: "Les archers tiennent les ponts, les casseurs foncent.", map: "islands", teams: 2, per: 6, mix: "aawwda", beds: true },
+    { n: "Îles sans retour", d: "Quatre îles, pas de lit : chaque chute est définitive.", map: "islands", teams: 4, per: 4, mix: "wwa" },
+    { n: "Le pont", d: "Un seul pont au-dessus du vide. Les coups font tomber.", map: "bridge", teams: 2, per: 6, mix: "wwwwaa" },
+    { n: "Pont des lits", d: "Un pont, deux lits au bout. Qui passera ?", map: "bridge", teams: 2, per: 4, mix: "wwda", beds: true },
+    { n: "Mêlée", d: "Huit épées contre huit épées.", map: "plain", teams: 2, per: 8, mix: "w" },
+    { n: "Archers contre épées", d: "Huit archers face à six guerriers.", map: "plain", teams: 2, per: [8, 6], mix: ["a", "w"] },
+    { n: "Chacun pour soi", d: "Dix combattants, dix couleurs, un seul survivant.", map: "plain", teams: 10, per: 1, mix: "w" },
+    { n: "Arène à quatre", d: "Quatre équipes de guerriers et d'archers.", map: "plain", teams: 4, per: 4, mix: "wwa" },
+    { n: "Escarmouche", d: "Trois contre trois, vite fait.", map: "plain", teams: 2, per: 3, mix: "wwa", size: 10 },
+    { n: "Grande bataille", d: "Vingt contre vingt.", map: "plain", teams: 2, per: 20, mix: "wwwwaa", size: 22 },
+    { n: "Duel des champions", d: "Un contre un, 40 points de vie chacun.", map: "plain", teams: 2, per: 1, mix: "w", hpMul: [3.4, 3.4], size: 8 },
+    { n: "Le géant", d: "Un géant de 150 points de vie contre douze.", map: "plain", teams: 2, per: [1, 12], mix: ["b", "wwwa"] },
+    { n: "Roi de la colline", d: "Tiens le sommet seul : 60 points pour gagner.", map: "hill", teams: 3, per: 4, mix: "wwa", respawn: [0, 1, 2], goal: 60, timer: 240 },
+    { n: "Colline à quatre", d: "Quatre équipes pour un seul sommet.", map: "hill", teams: 4, per: 3, mix: "wwa", respawn: [0, 1, 2, 3], goal: 60, timer: 240 },
+    { n: "Siège du château", d: "Les assaillants doivent briser le cœur en 2 min 30.", map: "castle", teams: 2, per: [6, 10], mix: ["aaww", "wwdda"], core: true, respawn: [1], timer: 150, timeWin: 0, names: ["Défenseurs", "Assaillants"] },
+    { n: "Forêt", d: "On se bat entre les arbres.", map: "forest", teams: 2, per: 6, mix: "wwa" },
+    { n: "Survie", d: "Quatre héros tiennent 90 s face aux vagues de monstres.", map: "plain", teams: 2, per: [4, 3], mix: ["wwaa", "z"], hpMul: [1.7, 1], waves: 5, timer: 90, names: ["Héros", "Monstres"], colors: ["#3e9fe8", "#2b2a33"], size: 14 },
+    { n: "Pluie de flèches", d: "Quatre équipes, rien que des archers.", map: "plain", teams: 4, per: 4, mix: "a" },
+  ];
+  const put = (L, x, y, z, color, shape = "cube", extra) => L.push(Object.assign({ shape, o: [x * 2, y * 2, z * 2], rot: 0, color }, extra));
+  const MAPS = {
+    plain(A, R = A.M.size || 15) {
+      const L = [];
+      for (let i = -R; i <= R; i++) [[i, -R], [i, R], [-R, i], [R, i]].forEach(([x, z]) => put(L, x, 0, z, "#c9c6bd"));
+      const n = A.teams.length;
+      return { list: L, R, spawns: A.teams.map((_, i) => {
+        const a = (i / n) * Math.PI * 2;
+        return [Math.round(Math.cos(a) * (R - 4)) * 2, 0, Math.round(Math.sin(a) * (R - 4)) * 2];
+      }) };
+    },
+    islands(A) {
+      const L = [], sp = [], D = 13;
+      const floor = (cx, cz, r, c) => { for (let x = -r; x <= r; x++) for (let z = -r; z <= r; z++) put(L, cx + x, 3, cz + z, c); };
+      floor(0, 0, 2, "#a4d13f");
+      [[1, 0], [-1, 0], [0, 1], [0, -1]].slice(0, A.teams.length).forEach(([dx, dz], i) => {
+        const cx = dx * D, cz = dz * D;
+        floor(cx, cz, 3, "#e8c9a0");
+        for (let k = 3; k <= D - 4; k++) put(L, dx * k, 3, dz * k, "#a0703f");
+        if (A.M.beds) {
+          put(L, cx + dx * 2, 4, cz + dz * 2, A.teams[i].color, "slab", { bedOf: i });
+          put(L, cx + dx * 3, 4, cz + dz * 3, "#f2f0eb", "slab");
+        }
+        sp.push([(cx - dx) * 2, 8, (cz - dz) * 2]);
+      });
+      return { list: L, R: 18, spawns: sp };
+    },
+    bridge(A) {
+      const L = [], sp = [];
+      [-1, 1].forEach((s, i) => {
+        for (let x = -3; x <= 3; x++) for (let z = -3; z <= 3; z++) put(L, s * 15 + x, 3, z, "#e8c9a0");
+        if (A.M.beds) {
+          put(L, s * 17, 4, 0, A.teams[i].color, "slab", { bedOf: i });
+          put(L, s * 18, 4, 0, "#f2f0eb", "slab");
+        }
+        sp.push([s * 26, 8, 0]);
+      });
+      for (let x = -11; x <= 11; x++) put(L, x, 3, 0, "#a0703f");
+      return { list: L, R: 20, spawns: sp };
+    },
+    hill(A) {
+      const m = MAPS.plain(A, 16);
+      for (let l = 0; l < 5; l++) for (let x = -(5 - l); x <= 5 - l; x++) for (let z = -(5 - l); z <= 5 - l; z++) {
+        m.list.push({ shape: "slab", o: [x * 2, l, z * 2], rot: 0, color: l === 4 ? "#ffc53d" : "#a4d13f" });
+      }
+      m.zone = [1, 1];
+      return m;
+    },
+    castle(A) {
+      const m = MAPS.plain(A, 18), L = m.list;
+      for (let x = -4; x <= 4; x++) for (let z = -4; z <= 4; z++) {
+        if (Math.max(Math.abs(x), Math.abs(z)) !== 4) continue;
+        for (let y = 0; y < 2; y++) if (!(x === 0 && z === 4)) put(L, x, y, z, "#c9c6bd");
+        if ((x + z + 100) % 2 === 0 && !(x === 0 && z === 4)) put(L, x, 2, z, "#6d6a73");
+      }
+      put(L, 0, 0, 0, "#ffc53d", "cube", { bedOf: 0 });
+      m.spawns = [[-4, 0, -4], [0, 0, 28]];
+      return m;
+    },
+    forest(A) {
+      const m = MAPS.plain(A, 16);
+      for (let i = 0; i < 24; i++) {
+        const x = Math.floor(Math.random() * 21) - 10, z = Math.floor(Math.random() * 15) - 7;
+        put(m.list, x, 0, z, "#a0703f"); put(m.list, x, 1, z, "#a0703f");
+        for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) put(m.list, x + dx, 2, z + dz, "#30a46c");
+        put(m.list, x, 3, z, "#a4d13f");
+      }
+      return m;
+    },
+  };
+  let arena = null;
+  const bedAlive = (T) => T.bed !== null && pieces.has(T.bed);
+  function spawnFighter(t, role) {
+    const [sx, sy, sz] = arena.spawns[t], st = ROLE[role], M = arena.M;
+    for (let rad = 0; rad < 10; rad++) for (let dx = -rad; dx <= rad; dx++) for (let dz = -rad; dz <= rad; dz++) {
+      if (Math.max(Math.abs(dx), Math.abs(dz)) !== rad) continue;
+      const o = [sx + dx, sy, sz + dz];
+      if (!freeFor(null, ...o) || !supported(null, ...o)) continue;
+      const id = newId();
+      setPiece(id, { shape: "npc", o, rot: 0, color: arena.teams[t].color, v: Math.floor(Math.random() * 4096), j: st.j, w: null });
+      const p = pieces.get(id), u = p.obj.userData;
+      p.ar = { t, role, dmg: st.dmg };
+      u.hp = u.max = Math.round(st.hp * (M.hpMul ? M.hpMul[t] : 1));
+      if (role === "b") p.obj.scale.setScalar(2);
+      return;
+    }
+  }
+  function startArena(i) {
+    const M = ARENAS[i], n = M.teams;
+    const names = M.names || TEAM.slice(0, n).map((t) => t[0]), colors = M.colors || TEAM.slice(0, n).map((t) => t[1]);
+    stopArena();
+    arena = { i, M, time: 0, over: false, queue: [], waveAt: M.waves || 0, kothAt: 1, hud: 0,
+      teams: names.map((name, t) => ({ name, color: colors[t], bed: null, pts: 0 })) };
+    const map = MAPS[M.map](arena);
+    currentWorld = null;
+    [...pieces.keys()].forEach((id) => setPiece(id, null));
+    for (const d of map.list) {
+      if (!inWorld(d.shape, d.o) || cellsOf(d.shape, d.o).some((k) => occ.has(k))) continue;
+      const id = newId();
+      setPiece(id, d);
+      if (d.bedOf !== undefined) arena.teams[d.bedOf].bed = id;
+    }
+    arena.spawns = map.spawns;
+    arena.zone = map.zone;
+    arena.teams.forEach((T, t) => {
+      const per = Array.isArray(M.per) ? M.per[t] : M.per, mix = Array.isArray(M.mix) ? M.mix[t] : M.mix;
+      for (let k = 0; k < per; k++) spawnFighter(t, mix[k % mix.length]);
+    });
+    undoStack.length = redoStack.length = 0;
+    changed();
+    $("world-name").textContent = M.n;
+    document.body.classList.add("arena");
+    $("hud").hidden = false;
+    $("hud-end").hidden = true;
+    closeTitle();
+    setSim(true);
+    lookAt(0, 3, 0, map.R / 12);
+    renderHud();
+  }
+  function stopArena() {
+    if (!arena) return;
+    arena = null;
+    document.body.classList.remove("arena");
+    $("hud").hidden = true;
+  }
+  function arenaDeath(q) {
+    const t = q.ar.t, T = arena.teams[t];
+    if (!arena.over && (bedAlive(T) || (arena.M.respawn || []).includes(t))) arena.queue.push({ t, role: q.ar.role, at: arena.time + 3 });
+  }
+  function stepAway(id, p, u, q) {
+    const here = gap(p, q);
+    return [0, 1, 2, 3]
+      .map((r) => [r, Math.hypot(p.o[0] + DIRS[r][0] - q.o[0], p.o[2] + DIRS[r][1] - q.o[2])])
+      .filter(([, d]) => d > here - 0.01)
+      .sort((a, b) => b[1] - a[1])
+      .some(([r]) => tryStep(id, p, u, r));
+  }
+  // Cerveau d'un combattant : viser, frapper ou tirer, casser le lit adverse, tenir la colline
+  function arenaTurn(id, p, u) {
+    const A = arena, me = p.ar;
+    if (!A || A.over) { u.wait = 1 + Math.random(); u.look = (Math.random() - 0.5) * 2; return; }
+    const foe = nearestNpc(id, p, (q) => q.ar && q.ar.t !== me.t, 80);
+    const q = foe && pieces.get(foe), d = q ? gap(p, q) : 1e9;
+    if (me.role === "a" && q) {
+      if (d < 3.5 && stepAway(id, p, u, q)) return;
+      if (d <= 20) { if (u.cd <= 0) shoot(id, p, foe, me.dmg); u.wait = 0.25; return; }
+    }
+    if (me.role !== "a" && q && d <= 1.6) { if (u.cd <= 0) strike(id, p, foe, me.dmg); u.wait = 0.12; return; }
+    let bed = null, bd = 1e9;
+    A.teams.forEach((T, t) => {
+      if (t === me.t || !bedAlive(T)) return;
+      const b = pieces.get(T.bed), dd = Math.hypot(b.o[0] + 1 - p.o[0] - 0.5, b.o[2] + 1 - p.o[2] - 0.5);
+      if (dd < bd) { bd = dd; bed = T; }
+    });
+    if (bed && (me.role === "d" || !q || d > 14)) {
+      const b = pieces.get(bed.bed);
+      if (bd <= 2.6 && Math.abs(b.o[1] - p.o[1]) <= 2) {
+        burst(p.obj.position, bed.color, 16);
+        setPiece(bed.bed, null);
+        news((A.M.core ? "Le cœur des " : "Le lit des ") + bed.name + " est détruit !");
+        u.work = 0.5; u.wait = 0.5;
+        return;
+      }
+      if (stepToward(id, p, u, b.o[0] + 1, b.o[2] + 1)) return;
+    }
+    if (A.zone && (!q || d > 8) && stepToward(id, p, u, A.zone[0], A.zone[1])) return;
+    if (q && stepToward(id, p, u, q.o[0] + 0.5, q.o[2] + 0.5)) return;
+    tryStep(id, p, u, Math.floor(Math.random() * 4)); // bloqué : un pas de côté
+    u.wait = 0.3;
+  }
+  const clock2 = (t) => Math.floor(t / 60) + ":" + String(Math.floor(t % 60)).padStart(2, "0");
+  function teamCounts() {
+    const alive = arena.teams.map(() => 0);
+    pieces.forEach((p) => { if (p.ar) alive[p.ar.t]++; });
+    return alive;
+  }
+  function renderHud() {
+    const A = arena, alive = teamCounts();
+    $("hud-info").textContent = A.M.n + " · " + clock2(A.time) + (A.M.timer ? " / " + clock2(A.M.timer) : "");
+    $("hud-teams").innerHTML = A.teams.map((T, t) => {
+      const out = !alive[t] && !A.queue.some((r) => r.t === t) && !A.zone;
+      const tag = T.bed !== null ? "<em>" + (bedAlive(T) ? (A.M.core ? "cœur" : "lit") : "✕") + "</em>" : "";
+      return '<span class="ht' + (out ? " out" : "") + '" style="--c:' + T.color + '"><i></i>' + T.name + " <b>" +
+        (A.zone ? T.pts + " pts" : alive[t]) + "</b>" + tag + "</span>";
+    }).join("");
+  }
+  function arenaTick(dt) {
+    const A = arena, M = A.M;
+    A.time += dt;
+    A.queue = A.queue.filter((r) => (r.at > A.time ? true : (spawnFighter(r.t, r.role), false)));
+    if (M.waves && A.time >= A.waveAt) { A.waveAt += M.waves; for (let k = 0; k < 3; k++) spawnFighter(1, "z"); }
+    if (A.zone && A.time >= A.kothAt) {
+      A.kothAt += 1;
+      const inZone = A.teams.map(() => 0);
+      pieces.forEach((p) => { if (p.ar && Math.hypot(p.o[0] + 0.5 - A.zone[0], p.o[2] + 0.5 - A.zone[1]) <= 6) inZone[p.ar.t]++; });
+      const best = Math.max(...inZone);
+      if (best > 0 && inZone.filter((v) => v === best).length === 1) A.teams[inZone.indexOf(best)].pts++;
+    }
+    const alive = teamCounts();
+    const standing = A.teams.map((T, t) => alive[t] > 0 || A.queue.some((r) => r.t === t));
+    const argmax = (arr) => arr.indexOf(Math.max(...arr));
+    let win = null;
+    if (A.zone) { const t = A.teams.findIndex((T) => T.pts >= M.goal); if (t >= 0) win = t; }
+    else if (M.waves) { if (!standing[0]) win = 1; }
+    else if (standing.filter(Boolean).length <= 1) win = standing.indexOf(true);
+    if (win === null && A.time >= (M.timer || 300)) win = M.waves ? 0 : M.timeWin ?? (A.zone ? argmax(A.teams.map((T) => T.pts)) : argmax(alive));
+    if ((A.hud -= dt) <= 0) { A.hud = 0.25; renderHud(); }
+    if (win === null) return;
+    A.over = true;
+    renderHud();
+    const T = A.teams[win];
+    $("hud-win").textContent = T ? "Victoire des " + T.name : "Égalité";
+    $("hud-win").style.color = T ? T.color : "";
+    $("hud-end").hidden = false;
+    pieces.forEach((p) => { if (p.ar && p.ar.t === win) burst(p.obj.position, "#ffc53d", 8); });
+  }
+  ARENAS.forEach((M, i) => {
+    const b = document.createElement("button");
+    b.className = "arena-card";
+    b.textContent = M.n;
+    const sm = document.createElement("small");
+    sm.textContent = M.d;
+    b.appendChild(sm);
+    b.onclick = () => startArena(i);
+    $("t-arenas").appendChild(b);
+  });
+  $("hud-again").onclick = () => startArena(arena ? arena.i : 0);
+  $("hud-more").onclick = () => { openTitle(); showView("t-arena-view"); };
+  $("t-arena").onclick = () => showView("t-arena-view");
+  $("m-arenas").onclick = () => { openMenu(false); openTitle(); showView("t-arena-view"); };
 
   // ---------- Mondes ----------
   // Chaque monde est enregistré à part ; un index garde le nom, la date et le nombre de pièces.
@@ -1667,6 +2136,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
   function openWorld(id) {
     const w = worlds.find((w) => w.id === id);
     if (!w) return;
+    stopArena();
     currentWorld = id;
     showWorld(worldPieces(id));
     $("world-name").textContent = w.name;
@@ -1714,7 +2184,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     return "il y a " + Math.round(m / 1440) + " j";
   };
   function showView(v) {
-    ["t-main", "t-new-view", "t-worlds-view", "t-help-view"].forEach((id) => ($(id).hidden = id !== v));
+    ["t-main", "t-new-view", "t-arena-view", "t-worlds-view", "t-help-view"].forEach((id) => ($(id).hidden = id !== v));
   }
   function refreshTitle() {
     const recent = byRecent()[0];
@@ -1823,6 +2293,8 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
 
   function start(data) {
     renderPalette();
+    $("bp").add(new Option("Au hasard", -1));
+    BLUEPRINTS.forEach(([n], i) => $("bp").add(new Option(n, i)));
     setColor(color);
     setShape("cube");
     setTool("place");
@@ -1842,6 +2314,8 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       const dt = Math.min(clock.getDelta(), 0.1);
       walk(dt);
       npcTick(dt);
+      if (arena && npcWalk && !arena.over) arenaTick(dt);
+      if (npcWalk) fxTick(dt);
       controls.update();
       follow();
       renderer.render(scene, camera);

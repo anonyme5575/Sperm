@@ -133,3 +133,10 @@ Aucun ne traverse les blocs ; ils tombent si on retire ce qui les porte. Ce qu'i
 Images : le menu « ⋯ » transforme une image PNG ou JPG en mur de pixel art, face à toi (64 px max en micro-cubes, 32 px max en blocs ; les pixels transparents sont ignorés). « Prendre une photo » affiche une image PNG de la vue, à enregistrer par appui long ou clic droit.
 
 La construction est sauvegardée automatiquement dans le navigateur. Le menu « ⋯ » donne un code texte pour la copier ailleurs ou la partager.
+
+## Arènes
+
+Menu principal → **Arènes** : 20 combats tout faits à regarder (guerre des lits à 2 ou 4, le pont, roi de la colline, siège du château, le géant, survie face aux vagues, chacun pour soi, pluie de flèches…). Guerriers à l'épée, archers qui tirent des flèches, casseurs de lit, géant, monstres. Les coups font reculer, une chute de plus de 4 blocs tue, un lit debout fait revenir les morts de son équipe. Le tableau en bas suit les équipes, les lits et le temps ; « Rejouer » relance.
+
+Bâtisseurs : 10 plans au choix (cabane, tour, maison, mur fortifié, pyramide, arbre, pont, statue, fontaine, château) ou « Au hasard », où il enchaîne jusqu'à 5 ouvrages.
+

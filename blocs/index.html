@@ -464,6 +464,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       <div class="choices" role="radiogroup" aria-label="Départ">
         <button class="choice" data-start="empty" role="radio" aria-checked="true">Terrain vide<small>Une grille à perte de vue.</small></button>
         <button class="choice" data-start="sample" role="radio" aria-checked="false">Avec l'exemple<small>Une maison, un étang et cinq bonshommes.</small></button>
+        <button class="choice" data-start="relief" role="radio" aria-checked="false">Avec du relief<small>Collines, montagnes enneigées, lacs et forêts.</small></button>
       </div>
       <button class="t-btn primary" id="t-create"><span>Créer et jouer</span></button>
     </div>
@@ -989,6 +990,51 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     });
     [[-3, 12, "e5484d", 5, 0], [4, 9, "ffc53d", 600, 2], [-9, 2, "30a46c", 1100, 0], [-11, 6, "30a46c", 2300, 0], [16, -6, "3e9fe8", 1500, 1]].forEach(([x, z, c, v, j]) =>
       out.push({ shape: "npc", o: [x, 0, z], rot: j === 1 ? 1 : 0, color: "#" + c, v, j, w: null }));
+    return out;
+  }
+
+  // Relief : bruit de valeur sur plusieurs octaves, colonnes creuses (on ne remplit que ce qui se voit)
+  function relief(R = 30) {
+    const out = [], seed = Math.random() * 1e4;
+    const cube = (x, y, z, c, shape = "cube") => out.push({ shape, o: [x * 2, y * 2, z * 2], rot: 0, color: c });
+    const hash = (x, z) => { const h = Math.sin(x * 127.1 + z * 311.7 + seed) * 43758.5453; return h - Math.floor(h); };
+    const smooth = (t) => t * t * (3 - 2 * t);
+    const noise = (x, z) => {
+      const ix = Math.floor(x), iz = Math.floor(z), fx = smooth(x - ix), fz = smooth(z - iz);
+      const a = hash(ix, iz), b = hash(ix + 1, iz), c = hash(ix, iz + 1), d = hash(ix + 1, iz + 1);
+      return a + (b - a) * fx + (c - a) * fz + (a - b - c + d) * fx * fz;
+    };
+    const H = (x, z) => {
+      if (Math.max(Math.abs(x), Math.abs(z)) > R) return 0;
+      let n = noise(x / 14, z / 14) * 0.6 + noise(x / 6, z / 6) * 0.28 + noise(x / 3, z / 3) * 0.12;
+      n = Math.pow(n, 2.2) * 26; // vallées larges, sommets pointus
+      const edge = Math.min(1, (R - Math.max(Math.abs(x), Math.abs(z))) / 6);
+      return Math.max(0, Math.round(n * edge));
+    };
+    const SEA = 2;
+    for (let x = -R; x <= R; x++) for (let z = -R; z <= R; z++) {
+      const h = H(x, z);
+      if (h < SEA) { // lac
+        for (let y = h; y < SEA; y++) cube(x, y, z, y === SEA - 1 ? "#3e9fe8" : "#3e63dd");
+        continue;
+      }
+      const low = Math.min(h, H(x + 1, z), H(x - 1, z), H(x, z + 1), H(x, z - 1));
+      const top = h > 15 ? "#f2f0eb" : h > 11 ? "#8b8d98" : h <= SEA ? "#e8c9a0" : "#a4d13f";
+      const under = h > 11 ? "#6d6a73" : "#a0703f";
+      for (let y = Math.max(0, low - 1); y <= h; y++) cube(x, y, z, y === h ? top : under);
+      if (h > SEA && h < 9 && hash(x * 3.1, z * 7.7) < 0.025) { // arbre
+        for (let y = h + 1; y <= h + 3; y++) cube(x, y, z, "#a0703f");
+        for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) for (let y = h + 3; y <= h + 4; y++)
+          if (dx || dz || y > h + 3) cube(x + dx, y, z + dz, "#30a46c");
+        cube(x, h + 5, z, "#30a46c");
+      }
+    }
+    [["#e5484d", 5, 0], ["#ffc53d", 600, 2], ["#30a46c", 1100, 0], ["#3e9fe8", 1500, 1]].forEach(([c, v, j], i) => {
+      for (let k = 0; k < 40; k++) {
+        const x = Math.floor(hash(i, k) * 20) - 10, z = Math.floor(hash(k, i + 9) * 20) - 10, h = H(x, z);
+        if (h > SEA && h < 9) { out.push({ shape: "npc", o: [x * 2, (h + 1) * 2, z * 2], rot: 0, color: c, v, j, w: null }); break; }
+      }
+    });
     return out;
   }
 
@@ -2266,13 +2312,13 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     closeTitle();
     goHome();
   }
-  function createWorld(name, withSample) {
+  function createWorld(name, start) {
     const id = "w" + Date.now().toString(36) + Math.floor(Math.random() * 1e4);
     worlds.push({ id, name, updated: Date.now(), count: 0 });
     store.set(worldKey(id), "[]");
     writeIndex();
     openWorld(id);
-    if (withSample) { showWorld(sample()); saveNow(); goHome(); }
+    if (start === "sample" || start === "relief") { showWorld(start === "sample" ? sample() : relief()); saveNow(); start === "sample" ? goHome() : lookAt(0, 8, 0, 3.2); }
   }
 
   // ---------- Écran d'accueil ----------
@@ -2396,7 +2442,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     startChoice = b.dataset.start;
     document.querySelectorAll("[data-start]").forEach((x) => x.setAttribute("aria-checked", x === b));
   }));
-  $("t-create").onclick = () => createWorld($("t-name").value.trim() || "Monde " + (worlds.length + 1), startChoice === "sample");
+  $("t-create").onclick = () => createWorld($("t-name").value.trim() || "Monde " + (worlds.length + 1), startChoice);
   $("t-name").addEventListener("keydown", (e) => { if (e.key === "Enter") $("t-create").click(); });
   $("t-worlds").onclick = () => { renderWorlds(); showView("t-worlds-view"); };
   $("t-help").onclick = () => showView("t-help-view");

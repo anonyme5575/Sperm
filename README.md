@@ -121,8 +121,14 @@ Bonshommes : des petits personnages (un bloc et demi de haut) avec un métier ch
 - **Promeneur** : il se balade, monte et descend les marches d'un demi-bloc, passe par une porte de 2 blocs.
 - **Bâtisseur** (il tient un bloc) : il construit une cabane de 3 × 3 blocs devant lui, avec une porte et un toit en pente, pièce par pièce, puis se promène.
 - **Peintre** (il tient un pinceau) : il repeint de la couleur de son haut les blocs qu'il touche en passant.
+- **Guerrier** (épée) : il traque le bonhomme d'une autre couleur le plus proche et l'attaque. Tout bonhomme frappé riposte. 10 points de vie, une barre apparaît après un coup, la vie remonte lentement.
+- **Démolisseur** (marteau) : il va casser les blocs les plus proches.
 
-Aucun ne traverse les blocs ; ils tombent si on retire ce qui les porte. Ce qu'ils construisent ou peignent ne passe pas par Annuler. Le menu « ⋯ » les met en pause.
+La couleur d'un bonhomme est son équipe. Deux bonshommes de même couleur qui se croisent font un bébé de leur couleur, avec le métier d'un parent (parfois un autre) ; 80 bonshommes au plus, bouton « Naissances » pour couper. Le bouton pause en haut (ou Espace) fige tout le monde.
+
+Interface : deux onglets en bas, « Construire » (formes) et « Bonshommes » (métiers, naissances), avec les outils en icônes et la palette en commun.
+
+Aucun ne traverse les blocs ; ils tombent si on retire ce qui les porte. Ce qu'ils construisent ou peignent ne passe pas par Annuler. 
 
 Images : le menu « ⋯ » transforme une image PNG ou JPG en mur de pixel art, face à toi (64 px max en micro-cubes, 32 px max en blocs ; les pixels transparents sont ignorés). « Prendre une photo » affiche une image PNG de la vue, à enregistrer par appui long ou clic droit.
 

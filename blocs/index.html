@@ -20,6 +20,7 @@
   --line: rgba(31, 36, 48, 0.12);
   --accent: #3e63dd;
   --accent-fg: #ffffff;
+  --solid: #ffffff;
   --danger: #d93d42;
   --scrim: rgba(223, 229, 236, 0.78);
   --font-ui: "Fredoka", ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
@@ -28,14 +29,14 @@
   :root:not([data-theme="light"]) {
     --scene: #14171d; --ground: #222731; --grid: #343b48;
     --panel: rgba(28, 32, 40, 0.88); --fg: #e8ebf1; --muted: #949db0;
-    --line: rgba(232, 235, 241, 0.12); --accent: #6e8cf5; --accent-fg: #0d1020;
+    --line: rgba(232, 235, 241, 0.12); --accent: #6e8cf5; --accent-fg: #0d1020; --solid: #2c323e;
     --danger: #ff6b6f; --scrim: rgba(20, 23, 29, 0.8); color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --scene: #14171d; --ground: #222731; --grid: #343b48;
   --panel: rgba(28, 32, 40, 0.88); --fg: #e8ebf1; --muted: #949db0;
-  --line: rgba(232, 235, 241, 0.12); --accent: #6e8cf5; --accent-fg: #0d1020;
+  --line: rgba(232, 235, 241, 0.12); --accent: #6e8cf5; --accent-fg: #0d1020; --solid: #2c323e;
   --danger: #ff6b6f; --scrim: rgba(20, 23, 29, 0.8); color-scheme: dark;
 }
 [hidden] { display: none !important; }
@@ -138,6 +139,17 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
 .shapes .tool { flex-direction: row; justify-content: center; gap: 6px; padding: 6px 4px; }
 .shapes .tool svg { width: 19px; height: 19px; flex: none; }
 .shapes .tool[data-shape="npc"] { flex: 1.5; }
+.dock-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.tabs { display: flex; background: var(--line); border-radius: 12px; padding: 3px; gap: 2px; }
+.tabs button { border: 0; background: transparent; border-radius: 9px; padding: 7px 13px; font-size: 14.5px; font-weight: 500; color: var(--muted); }
+.tabs button[aria-selected="true"] { background: var(--solid); color: var(--fg); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14); }
+.icons { display: flex; gap: 2px; }
+.icons .tool { flex: none; width: 40px; height: 40px; padding: 0; justify-content: center; font-size: 0; }
+.icons .tool svg { width: 22px; height: 22px; }
+.pane { display: flex; flex-direction: column; gap: 6px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.desc { margin: 0; flex: 1 1 180px; min-width: 0; font-size: 12.5px; line-height: 1.35; color: var(--muted); }
+@media (max-width: 420px) { .pos-wrap { display: none; } .tabs button { padding: 7px 10px; font-size: 13.5px; } .icons .tool { width: 34px; } }
 .opts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .chip {
   border: 1px solid var(--line); background: transparent; border-radius: 999px;
@@ -268,7 +280,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
 <header class="top">
   <div class="brand panel">
     <strong id="world-name">Boîte à Blocs</strong>
-    <span><span id="count">0 pièce</span> · <span id="pos" title="Position (est, sud)">0, 0</span></span>
+    <span><span id="count">0 bloc</span><span class="pos-wrap"> · </span><span id="pos" class="pos-wrap" title="Position (est, sud)">0, 0</span></span>
   </div>
   <div class="actions panel">
     <button class="icon-btn" id="undo" title="Annuler (Ctrl+Z)" aria-label="Annuler">
@@ -277,6 +289,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     <button class="icon-btn" id="redo" title="Rétablir (Ctrl+Y)" aria-label="Rétablir">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
     </button>
+    <button class="icon-btn" id="sim" title="Mettre les bonshommes en pause (Espace)" aria-label="Pause"></button>
     <button class="icon-btn" id="menu-btn" title="Plus" aria-label="Plus d'options" aria-expanded="false" aria-controls="menu">
       <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
     </button>
@@ -285,8 +298,6 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       <p class="sec">Vue</p>
       <button id="m-home">Aller à ma construction</button>
       <button id="m-view">Revenir au centre <small>0, 0</small></button>
-      <p class="sec">Bonshommes</p>
-      <button id="m-walk">Les mettre en pause <small>ils bougent</small></button>
       <p class="sec">Monde</p>
       <button id="m-sample">Charger l'exemple <small>remplace tout</small></button>
       <button id="m-clear">Tout effacer</button>
@@ -311,69 +322,88 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
 <div class="dock">
   <div class="hint panel" id="hint">Touche pour poser · glisse pour tourner · deux doigts pour zoomer et avancer</div>
   <div class="dock-card panel">
-    <div class="tools" role="toolbar" aria-label="Outils">
-      <button class="tool" data-tool="place" aria-pressed="true" title="Poser (1)">
+    <div class="dock-head">
+      <div class="tabs" role="tablist" aria-label="Mode">
+        <button role="tab" id="tab-build" aria-selected="true">Construire</button>
+        <button role="tab" id="tab-life" aria-selected="false">Bonshommes</button>
+      </div>
+      <div class="icons" role="toolbar" aria-label="Outils">
+        <button class="tool" data-tool="place" aria-pressed="true" title="Poser (1)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8.5v7M8.5 12h7"/></svg>
         Poser
       </button>
-      <button class="tool" data-tool="erase" aria-pressed="false" title="Effacer (2)">
+        <button class="tool" data-tool="erase" aria-pressed="false" title="Effacer (2)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4-4L14 6l7 7-8 8z"/><path d="M7 21h14M9.5 10.5l7 7"/></svg>
         Effacer
       </button>
-      <button class="tool" data-tool="paint" aria-pressed="false" title="Peindre (3)">
+        <button class="tool" data-tool="paint" aria-pressed="false" title="Peindre (3)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h13v5H4z"/><path d="M17 6.5h3V12h-8v3"/><path d="M10.5 15h3v6h-3z"/></svg>
         Peindre
       </button>
-      <button class="tool" data-tool="pick" aria-pressed="false" title="Pipette (4)">
+        <button class="tool" data-tool="pick" aria-pressed="false" title="Pipette (4)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 7 3 3"/><path d="M5 19l1-4 9-9 3 3-9 9z"/><path d="m16 5 1.5-1.5a2.1 2.1 0 0 1 3 3L19 8"/></svg>
         Pipette
       </button>
-      <div class="sep" aria-hidden="true"></div>
-      <button class="tool toggle" id="mirror" aria-pressed="false" title="Symétrie (M)">
+        <button class="tool toggle" id="mirror" aria-pressed="false" title="Symétrie (M)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18" stroke-dasharray="2 3"/><path d="M9 6 3 18h6zM15 6l6 12h-6z"/></svg>
         Symétrie
       </button>
+      </div>
     </div>
-    <div class="tools shapes" role="toolbar" aria-label="Formes">
-      <button class="tool toggle" data-shape="cube" aria-pressed="true" title="Bloc (5)">
+    <div class="pane" id="pane-build">
+      <div class="chips">
+        <button class="chip" data-shape="cube" aria-pressed="true" title="Bloc (5)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3 4 7.5v9L12 21l8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg>
         Bloc
       </button>
-      <button class="tool toggle" data-shape="slab" aria-pressed="false" title="Demi-bloc (6)">
+        <button class="chip" data-shape="slab" aria-pressed="false" title="Demi-bloc (6)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 7.5 4 11.5v4L12 20l8-4.5v-4z"/><path d="M4 11.5 12 16l8-4.5M12 16v4"/></svg>
         Demi
       </button>
-      <button class="tool toggle" data-shape="slope" aria-pressed="false" title="Pente (7)">
+        <button class="chip" data-shape="slope" aria-pressed="false" title="Pente (7)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 19h18V6z"/></svg>
         Pente
       </button>
-      <button class="tool toggle" data-shape="micro" aria-pressed="false" title="Micro-cube (8)">
+        <button class="chip" data-shape="micro" aria-pressed="false" title="Micro-cube (8)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/><rect x="8.5" y="4" width="7" height="7" rx="1"/></svg>
         Micro
       </button>
-      <button class="tool toggle" data-shape="npc" aria-pressed="false" title="Bonhomme (9)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="8.5" y="2.5" width="7" height="6" rx="1"/><path d="M7 10h10v6H7zM9 16v6M15 16v6"/></svg>
-        Bonhomme
-      </button>
-    </div>
-    <div class="opts" id="opts" hidden>
-      <button class="chip" id="rotate" title="Tourner (R)">
+        <button class="chip" id="rotate" title="Tourner (R)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>
         Tourner
       </button>
-      <span class="label" id="job-label">Métier</span>
-      <button class="chip" data-job="0" aria-pressed="true" title="Il se promène">
+      </div>
+    </div>
+    <div class="pane" id="pane-life" hidden>
+      <div class="chips">
+        <button class="chip" data-job="0" aria-pressed="true" title="Il se promène">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4.5" r="2"/><path d="m9 21 2.5-6.5L14 17v4M7 12l3-4h4l2 4M11.5 14.5 13 8"/></svg>
         Promeneur
       </button>
-      <button class="chip" data-job="1" aria-pressed="false" title="Il construit une cabane">
+        <button class="chip" data-job="1" aria-pressed="false" title="Il construit une cabane">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/></svg>
         Bâtisseur
       </button>
-      <button class="chip" data-job="2" aria-pressed="false" title="Il repeint les blocs qu'il croise">
+        <button class="chip" data-job="2" aria-pressed="false" title="Il repeint les blocs qu'il croise">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h13v5H4z"/><path d="M17 6.5h3V12h-8v3"/><path d="M10.5 15h3v6h-3z"/></svg>
         Peintre
       </button>
+        <button class="chip" data-job="3" aria-pressed="false" title="Il attaque les autres couleurs">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 3H21v6.5L10 20.5 3.5 14z"/><path d="m6 12 6 6M3 21l3-3"/></svg>
+          Guerrier
+        </button>
+        <button class="chip" data-job="4" aria-pressed="false" title="Il démolit les blocs">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 4 6 6-3 3-6-6z"/><path d="M12.5 8.5 4 17l3 3 8.5-8.5"/></svg>
+          Démolisseur
+        </button>
+      </div>
+      <div class="chips">
+        <p class="desc" id="job-desc"></p>
+        <button class="chip" id="births" aria-pressed="true" title="Deux bonshommes de même couleur font un bébé">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>
+          Naissances
+        </button>
+      </div>
     </div>
     <div class="palette" id="palette" role="radiogroup" aria-label="Couleurs"></div>
   </div>
@@ -396,7 +426,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       <label class="field">Nom du monde<input id="t-name" maxlength="40" autocomplete="off"></label>
       <div class="choices" role="radiogroup" aria-label="Départ">
         <button class="choice" data-start="empty" role="radio" aria-checked="true">Terrain vide<small>Une grille à perte de vue.</small></button>
-        <button class="choice" data-start="sample" role="radio" aria-checked="false">Avec l'exemple<small>Une maison, un étang et quatre bonshommes.</small></button>
+        <button class="choice" data-start="sample" role="radio" aria-checked="false">Avec l'exemple<small>Une maison, un étang et cinq bonshommes.</small></button>
       </div>
       <button class="t-btn primary" id="t-create"><span>Créer et jouer</span></button>
     </div>
@@ -412,7 +442,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
         <dt>Poser</dt><dd>Touche le sol ou une face. Choisis la forme et la couleur en bas.</dd>
         <dt>Tourner la vue</dt><dd>Glisse à un doigt, ou clic gauche glissé.</dd>
         <dt>Avancer, zoomer</dt><dd>Deux doigts, ou clic droit et molette. ZQSD au clavier.</dd>
-        <dt>Bonshommes</dt><dd>Forme « Bonhomme », puis un métier : le promeneur flâne, le bâtisseur construit une cabane, le peintre repeint ce qu'il croise de la couleur de son haut.</dd>
+        <dt>Bonshommes</dt><dd>Onglet « Bonshommes », un métier, une couleur (son équipe), puis touche le sol. Promeneur, bâtisseur, peintre, guerrier ou démolisseur. Deux bonshommes de même couleur font des bébés. Le bouton pause en haut les fige.</dd>
         <dt>Symétrie</dt><dd>Tout ce que tu fais est recopié en miroir.</dd>
         <dt>Sauvegarde</dt><dd>Automatique, dans ce navigateur. Le code du menu ⋯ transporte un monde ailleurs.</dd>
       </dl>
@@ -609,6 +639,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
   scene.add(blockGroup);
   const pieces = new Map(); // id -> { shape, o: [x, y, z] en unités fines, rot, color, idx }
   const occ = new Map(); // case fine "x,y,z" -> id
+  let npcTotal = 0;
   let nextId = 1;
   const newId = () => "p" + nextId++;
   const fkey = (x, y, z) => x + "," + y + "," + z;
@@ -654,6 +685,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
   // Chacun est un petit groupe de boîtes ; sa variante fixe peau, cheveux, pantalon et coiffure.
   const npcGroup = new THREE.Group();
   scene.add(npcGroup);
+  const HP_MAX = 10;
   const SKINS = ["#f6d3b3", "#e8b48c", "#c68b5e", "#9a6440", "#6b4128", "#f1c27d"];
   const HAIRS = ["#2b2118", "#5a3a22", "#a8692e", "#e3c16f", "#b0322e", "#d9d4cc", "#2b2a33"];
   const PANTS = ["#3e63dd", "#2b2a33", "#6d6a73", "#a0703f", "#30a46c", "#e8c9a0"];
@@ -694,6 +726,14 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     part(box(0.09, 0.09, 0.11), skin, 0, -0.39, 0, armR);
     // L'outil du métier, tenu dans la main droite
     if (d.j === 1) part(box(0.17, 0.17, 0.17), shirt, 0, -0.44, 0.09, armR);
+    if (d.j === 3) { // épée
+      part(box(0.05, 0.05, 0.44), plain("#c9c6bd"), 0, -0.42, 0.24, armR);
+      part(box(0.18, 0.04, 0.05), plain("#a0703f"), 0, -0.42, 0.04, armR);
+    }
+    if (d.j === 4) { // marteau
+      part(box(0.04, 0.04, 0.3), plain("#a0703f"), 0, -0.42, 0.15, armR);
+      part(box(0.22, 0.11, 0.11), plain("#2b2a33"), 0, -0.42, 0.31, armR);
+    }
     if (d.j === 2) {
       part(box(0.04, 0.04, 0.28), plain("#a0703f"), 0, -0.42, 0.14, armR);
       part(box(0.08, 0.08, 0.09), shirt, 0, -0.42, 0.31, armR);
@@ -708,13 +748,22 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     part(box(0.34, 0.09, 0.32), hair, 0, 0.32, -0.01, head);
     if (style === 1) part(box(0.34, 0.2, 0.08), hair, 0, 0.2, -0.13, head); // cheveux longs derrière
     if (style === 2) { part(box(0.36, 0.05, 0.4), shirt, 0, 0.36, 0.03, head); part(box(0.26, 0.12, 0.26), shirt, 0, 0.42, -0.02, head); } // casquette
-    g.userData = { legL, legR, armL, armR, head, from: new THREE.Vector3(), to: new THREE.Vector3(), t: 1, wait: Math.random() * 2, phase: 0, look: 0, work: 0, stuck: 0 };
+    // Barre de vie, visible seulement après un coup
+    const bar = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0x30a46c, depthTest: false }));
+    bar.position.set(0, 1.62, 0);
+    bar.scale.set(0.5, 0.06, 1);
+    bar.visible = false;
+    bar.raycast = () => {};
+    g.add(bar);
+    g.userData = { bar, hp: HP_MAX, cd: 0, love: 25 + Math.random() * 35, foe: null, legL, legR, armL, armR, head, from: new THREE.Vector3(), to: new THREE.Vector3(), t: 1, wait: Math.random() * 2, phase: 0, look: 0, work: 0, stuck: 0 };
     npcGroup.add(g);
     return g;
   }
   const npcSpot = (o, out) => out.set((o[0] + 0.5) / 2, o[1] / 2, (o[2] + 0.5) / 2);
   function dropNpc(p) {
     npcGroup.remove(p.obj);
+    p.obj.userData.bar.material.dispose();
+    npcTotal--;
   }
 
   function placeMatrix(d) {
@@ -755,6 +804,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       obj.userData.to.copy(obj.position);
       pieces.set(id, { shape: "npc", o, rot: d.rot || 0, color: d.color, v: d.v | 0, j: d.j | 0, w: d.w ? d.w.slice() : null, obj });
       cellsOf("npc", o).forEach((k) => occ.set(k, id));
+      npcTotal++;
       return;
     }
     const b = buckets[d.shape];
@@ -823,7 +873,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       if (!Array.isArray(e)) continue;
       const d = typeof e[0] === "string"
         ? { shape: BY_CODE[e[0]], o: [e[1], e[2], e[3]], rot: (((e[4] | 0) % 4) + 4) % 4, color: "#" + String(e[5]).toLowerCase(), v: e[6] | 0,
-            j: Math.min(2, Math.max(0, e[7] | 0)), w: Array.isArray(e[8]) && e[8].length === 5 && e[8].every(Number.isInteger) ? e[8] : null }
+            j: Math.min(4, Math.max(0, e[7] | 0)), w: Array.isArray(e[8]) && e[8].length === 5 && e[8].every(Number.isInteger) ? e[8] : null }
         : { shape: "cube", o: [e[0] * 2, e[1] * 2, e[2] * 2], rot: 0, color: "#" + String(e[3]).toLowerCase() };
       if (d.shape && /^#[0-9a-f]{6}$/.test(d.color) && inWorld(d.shape, d.o)) out.push(d);
     }
@@ -831,8 +881,8 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
   }
   let saveTimer = 0;
   function updateCount() {
-    const n = pieces.size;
-    $("count").textContent = n + (n > 1 ? " pièces" : " pièce");
+    const b = pieces.size - npcTotal, n = npcTotal;
+    $("count").textContent = b + (b > 1 ? " blocs · " : " bloc · ") + n + (n > 1 ? " bonshommes" : " bonhomme");
   }
   function changed() {
     updateCount();
@@ -882,7 +932,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     [[-14, 8, "ffc53d"], [-13, 12, "d6409f"], [-11, -12, "ffc53d"], [16, 1, "f5a7c4"], [-5, 9, "6e56cf"], [-1, 13, "e5484d"]].forEach(([x, z, c]) => {
       micro(x, 0, z, G); micro(x, 1, z, G); micro(x, 2, z, c);
     });
-    [[-3, 12, "e5484d", 5, 0], [4, 9, "ffc53d", 600, 2], [-9, 2, "30a46c", 1100, 0], [16, -6, "3e9fe8", 1500, 1]].forEach(([x, z, c, v, j]) =>
+    [[-3, 12, "e5484d", 5, 0], [4, 9, "ffc53d", 600, 2], [-9, 2, "30a46c", 1100, 0], [-11, 6, "30a46c", 2300, 0], [16, -6, "3e9fe8", 1500, 1]].forEach(([x, z, c, v, j]) =>
       out.push({ shape: "npc", o: [x, 0, z], rot: j === 1 ? 1 : 0, color: "#" + c, v, j, w: null }));
     return out;
   }
@@ -936,8 +986,13 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
   function setShape(s) {
     shape = s;
     document.querySelectorAll("[data-shape]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.shape === s));
-    $("opts").hidden = !TURNS.has(s);
-    document.querySelectorAll("[data-job], #job-label").forEach((b) => (b.hidden = s !== "npc"));
+    const life = s === "npc";
+    if (!life) lastBlock = s;
+    $("rotate").hidden = s !== "slope";
+    $("pane-build").hidden = life;
+    $("pane-life").hidden = !life;
+    $("tab-build").setAttribute("aria-selected", !life);
+    $("tab-life").setAttribute("aria-selected", life);
     if (tool !== "place" && tool !== "paint") setTool("place");
     updateHover();
   }
@@ -948,8 +1003,20 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     updateHover();
   }
   function rotate() { rotOffset = (rotOffset + 1) % 4; updateHover(); }
+  const JOB_INFO = [
+      "Le promeneur explore le monde.",
+      "Le bâtisseur construit une cabane devant lui.",
+      "Le peintre repeint de sa couleur les blocs qu'il touche.",
+      "Le guerrier traque et attaque les bonshommes d'une autre couleur.",
+      "Le démolisseur casse les blocs autour de lui.",
+  ];
+  let lastBlock = "cube", births = true;
+  $("tab-build").onclick = () => setShape(lastBlock);
+  $("tab-life").onclick = () => setShape("npc");
+  $("births").onclick = () => { births = !births; $("births").setAttribute("aria-pressed", births); };
   function setJob(j) {
     job = j;
+    $("job-desc").textContent = JOB_INFO[j] + " Sa couleur est son équipe.";
     document.querySelectorAll("[data-job]").forEach((b) => b.setAttribute("aria-pressed", +b.dataset.job === j));
   }
   document.querySelectorAll("[data-job]").forEach((b) => (b.onclick = () => setJob(+b.dataset.job)));
@@ -1255,7 +1322,8 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const tools = { 1: "place", 2: "erase", 3: "paint", 4: "pick" };
     const shapes = { 5: "cube", 6: "slab", 7: "slope", 8: "micro", 9: "npc" };
-    if (k === "j" && shape === "npc") return setJob((job + 1) % 3);
+    if (k === "j" && shape === "npc") return setJob((job + 1) % 5);
+    if (k === " ") { e.preventDefault(); return setSim(!npcWalk); }
     if (tools[k]) setTool(tools[k]);
     else if (shapes[k]) setShape(shapes[k]);
     else if (k === "r") rotate();
@@ -1337,9 +1405,17 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       // Plus rien dessous : il tombe d'un cran
       if (!supported(id, x, y, z) && freeFor(id, x, y - 1, z)) return moveNpc(id, p, [x, y - 1, z]);
       if (!npcWalk) return;
+      u.cd -= dt; u.love -= dt;
+      if (u.hp < HP_MAX) u.hp = Math.min(HP_MAX, u.hp + dt * 0.25);
+      u.bar.visible = u.hp < HP_MAX;
+      if (u.bar.visible) { u.bar.scale.x = 0.5 * u.hp / HP_MAX; u.bar.material.color.set(u.hp > HP_MAX / 2 ? 0x30a46c : 0xe5484d); }
       u.wait -= dt;
       if (u.wait > 0) return;
       u.look = 0;
+      if (u.foe && defendTurn(id, p, u)) return;
+      if (birthTurn(id, p, u)) return;
+      if (p.j === 3 && warriorTurn(id, p, u)) return;
+      if (p.j === 4 && demolishTurn(id, p, u)) return;
       if (p.j === 1 && builderTurn(id, p, u)) return;
       if (p.j === 2 && painterTurn(id, p, u)) return;
       if (Math.random() < 0.25) { u.wait = 1 + Math.random() * 2.5; u.look = (Math.random() - 0.5) * 1.6; return; }
@@ -1379,6 +1455,94 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     return Math.abs(dz) >= Math.abs(dx) ? (dz > 0 ? 0 : 2) : (dx > 0 ? 1 : 3);
   };
   function npcEdited() { updateCount(); saveSoon(); }
+
+  // ---------- Combat, démolition, naissances ----------
+  const POP_MAX = 80;
+  let lastNews = 0;
+  function news(text) {
+    if (performance.now() - lastNews < 1500) return;
+    lastNews = performance.now();
+    showHint(text, 2200);
+  }
+  const gap = (a, b) => Math.hypot(a.o[0] - b.o[0], a.o[2] - b.o[2]) + Math.abs(a.o[1] - b.o[1]);
+  function nearestNpc(id, p, test, max) {
+    let best = null, bd = max;
+    pieces.forEach((q, qid) => {
+      if (q.shape !== "npc" || qid === id || !test(q)) return;
+      const d = gap(p, q);
+      if (d < bd) { bd = d; best = qid; }
+    });
+    return best;
+  }
+  function strike(id, p, tid, dmg) {
+    const q = pieces.get(tid), v = q.obj.userData, u = p.obj.userData;
+    p.rot = faceToward(p, q.o[0] + 0.5, q.o[2] + 0.5);
+    u.work = 0.35; u.cd = 0.9;
+    v.hp -= dmg; v.foe = id; v.bar.visible = true;
+    if (v.hp > 0) return;
+    setPiece(tid, null);
+    npcEdited();
+    news("Un bonhomme est tombé au combat");
+  }
+  // Tout bonhomme frappé riposte tant que l'agresseur reste au contact
+  function defendTurn(id, p, u) {
+    const q = pieces.get(u.foe);
+    if (!q || gap(p, q) > 6) { u.foe = null; return false; }
+    if (gap(p, q) > 1.6) return p.j === 3 ? false : stepToward(id, p, u, q.o[0] + 0.5, q.o[2] + 0.5);
+    if (u.cd <= 0) strike(id, p, u.foe, p.j === 3 ? 3 : 1);
+    u.wait = 0.15;
+    return true;
+  }
+  function warriorTurn(id, p, u) {
+    const t = nearestNpc(id, p, (q) => q.color !== p.color, 40);
+    if (!t) return false;
+    const q = pieces.get(t);
+    if (gap(p, q) <= 1.6) {
+      if (u.cd <= 0) strike(id, p, t, 3);
+      u.wait = 0.15;
+      return true;
+    }
+    return stepToward(id, p, u, q.o[0] + 0.5, q.o[2] + 0.5);
+  }
+  function demolishTurn(id, p, u) {
+    let best = null, bd = 30;
+    pieces.forEach((q, qid) => {
+      if (q.shape === "npc" || q.o[1] > p.o[1] + 4) return;
+      const sz = SHAPES[q.shape].size;
+      const d = Math.hypot(q.o[0] + sz[0] / 2 - p.o[0] - 0.5, q.o[2] + sz[2] / 2 - p.o[2] - 0.5) + Math.abs(q.o[1] - p.o[1]) * 0.3;
+      if (d < bd) { bd = d; best = qid; }
+    });
+    if (!best) return false;
+    const q = pieces.get(best), sz = SHAPES[q.shape].size;
+    const cx = q.o[0] + sz[0] / 2, cz = q.o[2] + sz[2] / 2;
+    if (Math.max(Math.abs(cx - p.o[0] - 0.5), Math.abs(cz - p.o[2] - 0.5)) <= sz[0] / 2 + 1.5) {
+      setPiece(best, null);
+      p.rot = faceToward(p, cx, cz);
+      u.work = 0.5; u.wait = 0.6;
+      npcEdited();
+      return true;
+    }
+    return stepToward(id, p, u, cx, cz);
+  }
+  // Deux bonshommes de même couleur qui se croisent font un bébé : il hérite de la couleur et d'un des métiers
+  function birthTurn(id, p, u) {
+    if (!births || u.love > 0 || npcTotal >= POP_MAX) return false;
+    const m = nearestNpc(id, p, (q) => q.color === p.color && q.obj.userData.love <= 0, 3);
+    if (!m) return false;
+    const q = pieces.get(m);
+    for (let r = 0; r < 4; r++) {
+      const o = [p.o[0] + DIRS[r][0], p.o[1], p.o[2] + DIRS[r][1]];
+      if (!freeFor(null, ...o) || !supported(null, ...o)) continue;
+      const j = Math.random() < 0.2 ? Math.floor(Math.random() * 5) : Math.random() < 0.5 ? p.j : q.j;
+      setPiece(newId(), { shape: "npc", o, rot: r, color: p.color, v: Math.floor(Math.random() * 4096), j, w: null });
+      u.love = q.obj.userData.love = 45 + Math.random() * 45;
+      u.work = 0.3; u.wait = 1;
+      npcEdited();
+      news("Un bonhomme est né");
+      return true;
+    }
+    return false;
+  }
 
   // Bâtisseur : une cabane de 3 × 3 blocs devant lui, porte comprise, avec un toit en pente.
   // Il marche jusqu'à chaque pièce et la pose ; s'il n'arrive pas à s'approcher, il la lance.
@@ -1444,11 +1608,16 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     npcEdited();
     return true;
   }
-  $("m-walk").onclick = () => {
-    npcWalk = !npcWalk;
-    $("m-walk").innerHTML = npcWalk ? "Les mettre en pause <small>ils bougent</small>" : "Les relancer <small>en pause</small>";
-    openMenu(false);
-  };
+  const ICON_PAUSE = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
+  const ICON_PLAY = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5v14l12-7z"/></svg>';
+  function setSim(on) {
+    npcWalk = on;
+    $("sim").innerHTML = on ? ICON_PAUSE : ICON_PLAY;
+    $("sim").setAttribute("aria-label", on ? "Pause" : "Reprendre");
+    $("sim").title = on ? "Mettre les bonshommes en pause (Espace)" : "Relancer les bonshommes (Espace)";
+  }
+  setSim(true);
+  $("sim").onclick = () => setSim(!npcWalk);
 
   // ---------- Mondes ----------
   // Chaque monde est enregistré à part ; un index garde le nom, la date et le nombre de pièces.

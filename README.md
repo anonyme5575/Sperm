@@ -92,3 +92,20 @@ android/build.sh      # -> dist/duo.apk
 ```
 
 Il faut un JDK 17 ou plus, `curl`, `unzip` et `zip`. Le script télécharge le reste dans `android/.tools`. Le workflow GitHub « APK » compile aussi l'APK à chaque push (onglet Actions, artefact `duo-apk`).
+
+---
+
+# Boîte à Blocs
+
+Construction 3D avec des blocs de couleur unie, dans le navigateur. Ouvre `blocs/index.html` (PC ou téléphone, connexion internet nécessaire pour charger three.js).
+
+| Action | PC | Téléphone |
+|---|---|---|
+| Poser / effacer / peindre / pipette | clic (ou touches 1 à 4) | toucher |
+| Effacer vite | Maj + clic | — |
+| Tourner la vue | glisser | glisser à un doigt |
+| Zoomer / déplacer | molette / clic droit | pincer / glisser à deux doigts |
+| Symétrie (miroir gauche-droite) | touche M | bouton Symétrie |
+| Annuler / rétablir | Ctrl+Z / Ctrl+Y | boutons en haut |
+
+La construction est sauvegardée automatiquement dans le navigateur. Le menu « ⋯ » donne un code texte pour la copier ailleurs ou la partager.

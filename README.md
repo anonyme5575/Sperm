@@ -106,14 +106,16 @@ Construction 3D avec des blocs de couleur unie, dans un monde sans bord, dans le
 | Tourner la vue | glisser | glisser à un doigt |
 | Zoomer | molette | pincer |
 | Avancer dans le monde | clic droit glissé, ZQSD / WASD ou flèches | glisser à deux doigts |
-| Choisir la forme : bloc, demi-bloc, pente, micro-cube | touches 5 à 8 | ligne des formes |
-| Tourner une pente | touche R | bouton Tourner |
+| Choisir la forme : bloc, demi-bloc, pente, micro-cube, bonhomme | touches 5 à 9 | ligne des formes |
+| Tourner une pente ou un bonhomme | touche R | bouton Tourner |
 | Symétrie (miroir gauche-droite) | touche M | bouton Symétrie |
 | Annuler / rétablir | Ctrl+Z / Ctrl+Y | boutons en haut |
 
 Le monde est infini à l'horizontale (le sol est à la hauteur 0, plafond à 512 blocs). La position affichée en haut à gauche indique où tu es ; le menu « ⋯ » permet de revenir au centre ou d'aller à ta construction.
 
 Formes : un **demi-bloc** fait la moitié de la hauteur d'un bloc, un **micro-cube** fait la moitié d'un bloc dans chaque sens (8 micro-cubes = 1 bloc). Une **pente** monte en s'éloignant de toi ; « Tourner » lui ajoute un quart de tour. La pipette reprend la couleur et la forme.
+
+Bonshommes : des petits personnages (un bloc et demi de haut) qui se promènent tout seuls, au sol comme sur tes constructions. Ils montent et descendent les marches d'un demi-bloc, passent par une porte de 2 blocs, ne traversent rien et tombent si on retire ce qui les porte. Chacun a un physique tiré au hasard ; la couleur choisie est celle de son haut, et l'outil Peindre la change. Le menu « ⋯ » les arrête ou les fait repartir.
 
 Images : le menu « ⋯ » transforme une image PNG ou JPG en mur de pixel art, face à toi (64 px max en micro-cubes, 32 px max en blocs ; les pixels transparents sont ignorés). « Prendre une photo » affiche une image PNG de la vue, à enregistrer par appui long ou clic droit.
 

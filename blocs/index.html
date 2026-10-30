@@ -127,6 +127,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
 
 .shapes .tool { flex-direction: row; justify-content: center; gap: 6px; padding: 6px 4px; }
 .shapes .tool svg { width: 19px; height: 19px; flex: none; }
+.shapes .tool[data-shape="npc"] { flex: 1.5; }
 .dock-card > .shapes { border-top: 1px solid var(--line); padding-top: 8px; }
 
 .photo {
@@ -200,6 +201,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
       <button id="m-sample">Charger l'exemple <small>remplace tout</small></button>
       <button id="m-clear">Tout effacer</button>
       <hr>
+      <button id="m-walk">Arrêter les bonshommes <small>ils se promènent</small></button>
       <button id="m-photo">Prendre une photo <small>PNG</small></button>
       <button id="m-img-micro">Image → micro-cubes <small>PNG, JPG</small></button>
       <button id="m-img-cube">Image → blocs <small>PNG, JPG</small></button>
@@ -260,7 +262,11 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/><rect x="8.5" y="4" width="7" height="7" rx="1"/></svg>
         Micro
       </button>
-      <button class="tool" id="rotate" title="Tourner la pente (R)" hidden>
+      <button class="tool toggle" data-shape="npc" aria-pressed="false" title="Bonhomme (9)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="8.5" y="2.5" width="7" height="6" rx="1"/><path d="M7 10h10v6H7zM9 16v6M15 16v6"/></svg>
+        Bonhomme
+      </button>
+      <button class="tool" id="rotate" title="Tourner la pente ou le bonhomme (R)" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>
         Tourner
       </button>
@@ -290,8 +296,11 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     slab: { size: [2, 1, 2], code: "d" },
     slope: { size: [2, 2, 2], code: "p" },
     micro: { size: [1, 1, 1], code: "m" },
+    npc: { size: [1, 3, 1], code: "b" }, // bonhomme : un micro-cube de large, trois de haut
+
   };
-  const BY_CODE = { c: "cube", d: "slab", p: "slope", m: "micro" };
+  const BY_CODE = { c: "cube", d: "slab", p: "slope", m: "micro", b: "npc" };
+  const TURNS = new Set(["slope", "npc"]); // formes qu'on oriente
   const COLORS = [
     ["Craie", "#f2f0eb"], ["Galet", "#c9c6bd"], ["Ardoise", "#6d6a73"], ["Charbon", "#2b2a33"],
     ["Tomate", "#e5484d"], ["Mandarine", "#f76b15"], ["Citron", "#ffc53d"], ["Sable", "#e8c9a0"],
@@ -444,6 +453,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     slab: new THREE.BoxGeometry(1, 0.5, 1),
     slope: wedgeGeometry(),
     micro: new THREE.BoxGeometry(0.5, 0.5, 0.5),
+    npc: new THREE.BoxGeometry(0.34, 1.36, 0.26), // silhouette de l'aperçu
   };
   const blockMat = new THREE.MeshStandardMaterial({ map: faceTex, roughness: 0.62, metalness: 0 });
 
@@ -469,7 +479,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     Math.abs(o[0]) < LIMIT && Math.abs(o[2]) < LIMIT;
   const dataOf = (id) => {
     const p = pieces.get(id);
-    return p ? { shape: p.shape, o: p.o.slice(), rot: p.rot, color: p.color } : null;
+    return p ? { shape: p.shape, o: p.o.slice(), rot: p.rot, color: p.color, v: p.v } : null;
   };
 
   const buckets = {};
@@ -493,7 +503,68 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     b.cap = cap;
     blockGroup.add(m);
   }
-  Object.keys(SHAPES).forEach((s) => grow(s, 256));
+  Object.keys(SHAPES).filter((s) => s !== "npc").forEach((s) => grow(s, 256));
+
+  // ---------- Bonshommes ----------
+  // Chacun est un petit groupe de boîtes ; sa variante fixe peau, cheveux, pantalon et coiffure.
+  const npcGroup = new THREE.Group();
+  scene.add(npcGroup);
+  const SKINS = ["#f6d3b3", "#e8b48c", "#c68b5e", "#9a6440", "#6b4128", "#f1c27d"];
+  const HAIRS = ["#2b2118", "#5a3a22", "#a8692e", "#e3c16f", "#b0322e", "#d9d4cc", "#2b2a33"];
+  const PANTS = ["#3e63dd", "#2b2a33", "#6d6a73", "#a0703f", "#30a46c", "#e8c9a0"];
+  const plainMats = new Map();
+  const plain = (hex) => {
+    if (!plainMats.has(hex)) plainMats.set(hex, new THREE.MeshStandardMaterial({ color: hex, roughness: 0.7 }));
+    return plainMats.get(hex);
+  };
+  const boxCache = new Map();
+  const box = (w, h, d) => {
+    const k = w + "|" + h + "|" + d;
+    if (!boxCache.has(k)) boxCache.set(k, new THREE.BoxGeometry(w, h, d));
+    return boxCache.get(k);
+  };
+  function buildNpc(id, d) {
+    const v = d.v | 0;
+    const skin = plain(SKINS[v % SKINS.length]), hair = plain(HAIRS[(v >> 3) % HAIRS.length]);
+    const pants = plain(PANTS[(v >> 6) % PANTS.length]), shirt = plain(d.color), dark = plain("#1d1f26");
+    const g = new THREE.Group();
+    const part = (geo, mat, x, y, z, parent = g) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z);
+      m.castShadow = m.receiveShadow = true;
+      m.userData.npcId = id;
+      parent.add(m);
+      return m;
+    };
+    // Jambes et bras pendent d'un pivot pour pouvoir se balancer en marchant
+    const limb = (x, y) => { const p = new THREE.Group(); p.position.set(x, y, 0); g.add(p); return p; };
+    const legL = limb(-0.08, 0.5), legR = limb(0.08, 0.5);
+    part(box(0.14, 0.5, 0.16), pants, 0, -0.25, 0, legL);
+    part(box(0.14, 0.5, 0.16), pants, 0, -0.25, 0, legR);
+    part(box(0.36, 0.48, 0.22), shirt, 0, 0.74, 0);
+    const armL = limb(-0.24, 0.94), armR = limb(0.24, 0.94);
+    part(box(0.1, 0.36, 0.13), shirt, 0, -0.17, 0, armL);
+    part(box(0.1, 0.36, 0.13), shirt, 0, -0.17, 0, armR);
+    part(box(0.09, 0.09, 0.11), skin, 0, -0.39, 0, armL);
+    part(box(0.09, 0.09, 0.11), skin, 0, -0.39, 0, armR);
+    const head = new THREE.Group();
+    head.position.set(0, 0.98, 0);
+    g.add(head);
+    part(box(0.32, 0.3, 0.3), skin, 0, 0.15, 0, head);
+    part(box(0.05, 0.06, 0.02), dark, -0.075, 0.17, 0.155, head);
+    part(box(0.05, 0.06, 0.02), dark, 0.075, 0.17, 0.155, head);
+    const style = (v >> 9) % 3;
+    part(box(0.34, 0.09, 0.32), hair, 0, 0.32, -0.01, head);
+    if (style === 1) part(box(0.34, 0.2, 0.08), hair, 0, 0.2, -0.13, head); // cheveux longs derrière
+    if (style === 2) { part(box(0.36, 0.05, 0.4), shirt, 0, 0.36, 0.03, head); part(box(0.26, 0.12, 0.26), shirt, 0, 0.42, -0.02, head); } // casquette
+    g.userData = { legL, legR, armL, armR, head, from: new THREE.Vector3(), to: new THREE.Vector3(), t: 1, wait: Math.random() * 2, phase: 0, look: 0 };
+    npcGroup.add(g);
+    return g;
+  }
+  const npcSpot = (o, out) => out.set((o[0] + 0.5) / 2, o[1] / 2, (o[2] + 0.5) / 2);
+  function dropNpc(p) {
+    npcGroup.remove(p.obj);
+  }
 
   function placeMatrix(d) {
     const s = SHAPES[d.shape].size;
@@ -503,7 +574,11 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   }
   function setPiece(id, d) {
     const old = pieces.get(id);
-    if (old) {
+    if (old && old.shape === "npc") {
+      dropNpc(old);
+      cellsOf(old.shape, old.o).forEach((k) => occ.delete(k));
+      pieces.delete(id);
+    } else if (old) {
       const b = buckets[old.shape], last = b.ids.length - 1;
       if (old.idx !== last) {
         const lid = b.ids[last];
@@ -519,6 +594,18 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
       pieces.delete(id);
     }
     if (!d) return;
+    if (d.shape === "npc") {
+      // Un bonhomme a pu marcher entre-temps : s'il retombe sur une place prise, il monte au-dessus
+      const o = d.o.slice();
+      while (cellsOf("npc", o).some((k) => occ.has(k) && occ.get(k) !== id)) o[1]++;
+      const obj = buildNpc(id, d);
+      npcSpot(o, obj.position);
+      obj.rotation.y = (d.rot || 0) * Math.PI / 2;
+      obj.userData.to.copy(obj.position);
+      pieces.set(id, { shape: "npc", o, rot: d.rot || 0, color: d.color, v: d.v | 0, obj });
+      cellsOf("npc", o).forEach((k) => occ.set(k, id));
+      return;
+    }
     const b = buckets[d.shape];
     if (b.ids.length >= b.cap) grow(d.shape, b.cap * 2);
     const i = b.ids.length;
@@ -573,14 +660,18 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   // ---------- Sauvegarde ----------
   // Format : [forme, x, y, z, rotation, couleur] en unités fines. L'ancien format [x, y, z, couleur]
   // (blocs entiers uniquement) se relit toujours.
-  const serialize = () => [...pieces.values()].map((p) => [SHAPES[p.shape].code, ...p.o, p.rot, p.color.slice(1)]);
+  const serialize = () => [...pieces.values()].map((p) => {
+    const row = [SHAPES[p.shape].code, ...p.o, p.rot, p.color.slice(1)];
+    if (p.shape === "npc") row.push(p.v);
+    return row;
+  });
   function parseList(list) {
     if (!Array.isArray(list)) throw new Error("format");
     const out = [];
     for (const e of list) {
       if (!Array.isArray(e)) continue;
       const d = typeof e[0] === "string"
-        ? { shape: BY_CODE[e[0]], o: [e[1], e[2], e[3]], rot: (((e[4] | 0) % 4) + 4) % 4, color: "#" + String(e[5]).toLowerCase() }
+        ? { shape: BY_CODE[e[0]], o: [e[1], e[2], e[3]], rot: (((e[4] | 0) % 4) + 4) % 4, color: "#" + String(e[5]).toLowerCase(), v: e[6] | 0 }
         : { shape: "cube", o: [e[0] * 2, e[1] * 2, e[2] * 2], rot: 0, color: "#" + String(e[3]).toLowerCase() };
       if (d.shape && /^#[0-9a-f]{6}$/.test(d.color) && inWorld(d.shape, d.o)) out.push(d);
     }
@@ -592,10 +683,15 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     $("count").textContent = n + (n > 1 ? " pièces" : " pièce");
     $("undo").disabled = !undoStack.length;
     $("redo").disabled = !redoStack.length;
-    clearTimeout(saveTimer);
+    saveSoon();
+  }
+  // Au plus une écriture toutes les 0,8 s : les bonshommes bougent sans arrêt
+  function saveSoon() {
+    if (saveTimer) return;
     saveTimer = setTimeout(() => {
+      saveTimer = 0;
       try { localStorage.setItem(STORE_KEY, JSON.stringify(serialize())); } catch (e) {}
-    }, 300);
+    }, 800);
   }
   const encode = () => "BAB2:" + btoa(JSON.stringify(serialize()));
   const decode = (text) => parseList(JSON.parse(atob(text.trim().replace(/^BAB\d:/, ""))));
@@ -634,6 +730,8 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     [[-14, 8, "ffc53d"], [-13, 12, "d6409f"], [-11, -12, "ffc53d"], [16, 1, "f5a7c4"], [-5, 9, "6e56cf"], [-1, 13, "e5484d"]].forEach(([x, z, c]) => {
       micro(x, 0, z, G); micro(x, 1, z, G); micro(x, 2, z, c);
     });
+    [[-3, 12, "e5484d", 5], [4, 9, "ffc53d", 600], [-9, 2, "30a46c", 1100], [9, -2, "6e56cf", 1500]].forEach(([x, z, c, v]) =>
+      out.push({ shape: "npc", o: [x, 0, z], rot: 0, color: "#" + c, v }));
     return out;
   }
 
@@ -686,7 +784,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   function setShape(s) {
     shape = s;
     document.querySelectorAll("[data-shape]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.shape === s));
-    $("rotate").hidden = s !== "slope";
+    $("rotate").hidden = !TURNS.has(s);
     if (tool !== "place" && tool !== "paint") setTool("place");
     updateHover();
   }
@@ -830,13 +928,19 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     const r = canvas.getBoundingClientRect();
     ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
-    const hit = ray.intersectObjects([blockGroup, ground], true)[0];
+    const hit = ray.intersectObjects([blockGroup, npcGroup, ground], true)[0];
     if (!hit) return null;
     const P = [hit.point.x * 2, hit.point.y * 2, hit.point.z * 2];
     if (hit.object === ground) return { id: null, P, axis: 1, sign: 1 };
-    const id = buckets[hit.object.userData.shape].ids[hit.instanceId];
-    hit.object.getMatrixAt(hit.instanceId, tmpM);
-    nrm.copy(hit.face.normal).transformDirection(tmpM);
+    let id;
+    if (hit.object.userData.npcId) {
+      id = hit.object.userData.npcId;
+      nrm.copy(hit.face.normal).transformDirection(hit.object.matrixWorld);
+    } else {
+      id = buckets[hit.object.userData.shape].ids[hit.instanceId];
+      hit.object.getMatrixAt(hit.instanceId, tmpM);
+      nrm.copy(hit.face.normal).transformDirection(tmpM);
+    }
     // Face penchée d'une pente : on pose dessus, comme sur le haut d'un bloc
     const ab = [Math.abs(nrm.x), Math.abs(nrm.y), Math.abs(nrm.z)];
     const axis = ab[1] >= Math.max(ab[0], ab[2]) - 1e-3 ? 1 : ab[0] > ab[2] ? 0 : 2;
@@ -867,7 +971,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   const mirrorData = (d) => ({
     ...d,
     o: [-(d.o[0] + SHAPES[d.shape].size[0]), d.o[1], d.o[2]],
-    rot: d.shape === "slope" ? (4 - d.rot) % 4 : d.rot,
+    rot: TURNS.has(d.shape) ? (4 - d.rot) % 4 : d.rot,
   });
   function targetIds(id) {
     const ids = [id];
@@ -878,8 +982,11 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     }
     return ids;
   }
+  // Un bonhomme posé regarde la caméra, une pente monte en s'en éloignant : même quart de tour
   function plannedPiece(t) {
-    return { shape, o: placeAt(t, shape), rot: shape === "slope" ? slopeRot() : 0, color };
+    const d = { shape, o: placeAt(t, shape), rot: TURNS.has(shape) ? slopeRot() : 0, color };
+    if (shape === "npc") d.v = Math.floor(Math.random() * 4096);
+    return d;
   }
 
   function act(t, mode) {
@@ -987,7 +1094,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     if ((e.ctrlKey || e.metaKey) && k === "y") { e.preventDefault(); redo(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const tools = { 1: "place", 2: "erase", 3: "paint", 4: "pick" };
-    const shapes = { 5: "cube", 6: "slab", 7: "slope", 8: "micro" };
+    const shapes = { 5: "cube", 6: "slab", 7: "slope", 8: "micro", 9: "npc" };
     if (tools[k]) setTool(tools[k]);
     else if (shapes[k]) setShape(shapes[k]);
     else if (k === "r") rotate();
@@ -1018,6 +1125,85 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     $("hint").textContent = "Clic pour poser · glisser pour tourner · clic droit ou ZQSD pour avancer · Maj+clic pour effacer";
   }
 
+  // ---------- Promenade des bonshommes ----------
+  // Ils avancent d'un demi-bloc à la fois, montent ou descendent une marche d'un demi-bloc,
+  // ne traversent rien et tombent si on retire ce qui les porte.
+  let npcWalk = true;
+  const STEP_TIME = 0.32;
+  const DIRS = [[0, 1], [1, 0], [0, -1], [-1, 0]]; // index = orientation (0 : regarde vers +z)
+  const freeFor = (id, x, y, z) => {
+    if (y < 0 || y + 3 > MAX_H) return false;
+    for (let dy = 0; dy < 3; dy++) { const o = occ.get(fkey(x, y + dy, z)); if (o && o !== id) return false; }
+    return true;
+  };
+  const supported = (id, x, y, z) => {
+    if (y === 0) return true;
+    const below = occ.get(fkey(x, y - 1, z));
+    return !!below && below !== id;
+  };
+  function moveNpc(id, p, o) {
+    cellsOf("npc", p.o).forEach((k) => occ.delete(k));
+    p.o = o;
+    cellsOf("npc", o).forEach((k) => occ.set(k, id));
+    const u = p.obj.userData;
+    u.from.copy(p.obj.position);
+    npcSpot(o, u.to);
+    u.t = 0;
+    saveSoon();
+  }
+  function npcTick(dt) {
+    pieces.forEach((p, id) => {
+      if (p.shape !== "npc") return;
+      const u = p.obj.userData;
+      if (u.t < 1) {
+        u.t = Math.min(1, u.t + dt / STEP_TIME);
+        p.obj.position.lerpVectors(u.from, u.to, u.t);
+        p.obj.position.y += Math.sin(u.t * Math.PI) * 0.06;
+        u.phase += dt * 11;
+      } else {
+        u.phase *= 0.85;
+      }
+      const swing = Math.sin(u.phase) * 0.6 * (u.t < 1 ? 1 : 0);
+      u.legL.rotation.x = swing; u.legR.rotation.x = -swing;
+      u.armL.rotation.x = -swing * 0.8; u.armR.rotation.x = swing * 0.8;
+      u.head.rotation.y += (u.look - u.head.rotation.y) * Math.min(1, dt * 4);
+      const target = p.rot * Math.PI / 2;
+      let diff = ((target - p.obj.rotation.y) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI;
+      p.obj.rotation.y += diff * Math.min(1, dt * 10);
+      if (u.t < 1) return;
+      const [x, y, z] = p.o;
+      // Plus rien dessous : il tombe d'un cran
+      if (!supported(id, x, y, z) && freeFor(id, x, y - 1, z)) return moveNpc(id, p, [x, y - 1, z]);
+      if (!npcWalk) return;
+      u.wait -= dt;
+      if (u.wait > 0) return;
+      if (Math.random() < 0.25) { u.wait = 1 + Math.random() * 2.5; u.look = (Math.random() - 0.5) * 1.6; return; }
+      u.look = 0;
+      // Préfère continuer tout droit, sinon tourne
+      const order = [p.rot, (p.rot + 1) % 4, (p.rot + 3) % 4, (p.rot + 2) % 4];
+      if (Math.random() < 0.3) order.reverse();
+      for (const r of order) {
+        const nx = x + DIRS[r][0], nz = z + DIRS[r][1];
+        for (const dy of [0, 1, -1]) {
+          const ny = y + dy;
+          if (dy === 1 && !freeFor(id, x, y + 1, z)) continue; // pas la place de lever la tête
+          if (freeFor(id, nx, ny, nz) && supported(id, nx, ny, nz)) {
+            p.rot = r;
+            u.wait = Math.random() < 0.8 ? 0 : 0.5 + Math.random();
+            return moveNpc(id, p, [nx, ny, nz]);
+          }
+        }
+      }
+      p.rot = (p.rot + 1 + Math.floor(Math.random() * 3)) % 4; // coincé : il se retourne
+      u.wait = 0.6 + Math.random();
+    });
+  }
+  $("m-walk").onclick = () => {
+    npcWalk = !npcWalk;
+    $("m-walk").firstChild.textContent = npcWalk ? "Arrêter les bonshommes " : "Faire marcher les bonshommes ";
+    openMenu(false);
+  };
+
   // ---------- Démarrage ----------
   function resize() {
     const w = window.innerWidth, h = window.innerHeight;
@@ -1045,7 +1231,9 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     changed();
     const clock = new THREE.Clock();
     renderer.setAnimationLoop(() => {
-      walk(Math.min(clock.getDelta(), 0.1));
+      const dt = Math.min(clock.getDelta(), 0.1);
+      walk(dt);
+      npcTick(dt);
       controls.update();
       follow();
       renderer.render(scene, camera);

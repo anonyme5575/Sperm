@@ -125,6 +125,19 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
 .tool.toggle[aria-pressed="true"] { background: transparent; color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
 .sep { width: 1px; background: var(--line); margin: 6px 2px; }
 
+.shapes .tool { flex-direction: row; justify-content: center; gap: 6px; padding: 6px 4px; }
+.shapes .tool svg { width: 19px; height: 19px; flex: none; }
+.dock-card > .shapes { border-top: 1px solid var(--line); padding-top: 8px; }
+
+.photo {
+  position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
+  background: rgba(10, 12, 18, 0.45);
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+}
+.photo-card { border-radius: 18px; padding: 12px; display: flex; flex-direction: column; gap: 10px; max-width: min(720px, 100%); box-sizing: border-box; }
+.photo-card img { border-radius: 10px; max-height: 60vh; object-fit: contain; -webkit-touch-callout: default; -webkit-user-select: auto; user-select: auto; }
+.photo-card p { margin: 0; font-size: 14px; color: var(--muted); }
+
 .palette {
   display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 6px; scrollbar-width: thin;
   scroll-snap-type: x proximity;
@@ -154,6 +167,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
 
 @media (max-width: 420px) {
   .tool { font-size: 11px; }
+  .shapes .tool { flex-direction: column; gap: 2px; }
   .brand strong { font-size: 15.5px; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -168,7 +182,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
 <header class="top">
   <div class="brand panel">
     <strong>Boîte à Blocs</strong>
-    <span><span id="count">0 bloc</span> · <span id="pos" title="Position (est, sud)">0, 0</span></span>
+    <span><span id="count">0 pièce</span> · <span id="pos" title="Position (est, sud)">0, 0</span></span>
   </div>
   <div class="actions panel">
     <button class="icon-btn" id="undo" title="Annuler (Ctrl+Z)" aria-label="Annuler">
@@ -185,6 +199,11 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
       <button id="m-home">Aller à ma construction</button>
       <button id="m-sample">Charger l'exemple <small>remplace tout</small></button>
       <button id="m-clear">Tout effacer</button>
+      <hr>
+      <button id="m-photo">Prendre une photo <small>PNG</small></button>
+      <button id="m-img-micro">Image → micro-cubes <small>PNG, JPG</small></button>
+      <button id="m-img-cube">Image → blocs <small>PNG, JPG</small></button>
+      <input type="file" id="img-file" accept="image/*" hidden>
       <hr>
       <div class="code-box">
         <p>Le code contient toute ta construction. Garde-le pour la retrouver ailleurs ou l'envoyer à quelqu'un.</p>
@@ -203,7 +222,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   <div class="dock-card panel">
     <div class="tools" role="toolbar" aria-label="Outils">
       <button class="tool" data-tool="place" aria-pressed="true" title="Poser (1)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3 4 7.5v9L12 21l8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8.5v7M8.5 12h7"/></svg>
         Poser
       </button>
       <button class="tool" data-tool="erase" aria-pressed="false" title="Effacer (2)">
@@ -224,7 +243,37 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
         Symétrie
       </button>
     </div>
+    <div class="tools shapes" role="toolbar" aria-label="Formes">
+      <button class="tool toggle" data-shape="cube" aria-pressed="true" title="Bloc (5)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3 4 7.5v9L12 21l8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg>
+        Bloc
+      </button>
+      <button class="tool toggle" data-shape="slab" aria-pressed="false" title="Demi-bloc (6)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 7.5 4 11.5v4L12 20l8-4.5v-4z"/><path d="M4 11.5 12 16l8-4.5M12 16v4"/></svg>
+        Demi
+      </button>
+      <button class="tool toggle" data-shape="slope" aria-pressed="false" title="Pente (7)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 19h18V6z"/></svg>
+        Pente
+      </button>
+      <button class="tool toggle" data-shape="micro" aria-pressed="false" title="Micro-cube (8)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/><rect x="8.5" y="4" width="7" height="7" rx="1"/></svg>
+        Micro
+      </button>
+      <button class="tool" id="rotate" title="Tourner la pente (R)" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>
+        Tourner
+      </button>
+    </div>
     <div class="palette" id="palette" role="radiogroup" aria-label="Couleurs"></div>
+  </div>
+</div>
+
+<div class="photo" id="photo" hidden>
+  <div class="photo-card panel">
+    <img id="photo-img" alt="Photo de ta construction">
+    <p>Appui long sur l'image (téléphone) ou clic droit (ordinateur) pour l'enregistrer en PNG.</p>
+    <button class="pill primary" id="photo-close">Fermer</button>
   </div>
 </div>
 
@@ -232,9 +281,17 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
 <script src="https://cdn.jsdelivr.net/npm/three@0.140.0/examples/js/controls/OrbitControls.js"></script>
 <script>
 (() => {
-  // Monde sans bord : seul le sol (y = 0) limite vers le bas, la hauteur est plafonnée très haut
-  const MAX_H = 512, LIMIT = 1e6, GRID = 400;
-  const STORE_KEY = "boite-a-blocs-v1";
+  // Le monde se mesure en demi-blocs ("unités fines") : un bloc fait 2×2×2, un micro-cube 1×1×1.
+  // Pas de bord à l'horizontale, le sol (y = 0) limite vers le bas, la hauteur est plafonnée très haut.
+  const MAX_H = 512 * 2, LIMIT = 2e6, GRID = 400;
+  const STORE_KEY = "boite-a-blocs-v2", OLD_STORE_KEY = "boite-a-blocs-v1";
+  const SHAPES = {
+    cube: { size: [2, 2, 2], code: "c" },
+    slab: { size: [2, 1, 2], code: "d" },
+    slope: { size: [2, 2, 2], code: "p" },
+    micro: { size: [1, 1, 1], code: "m" },
+  };
+  const BY_CODE = { c: "cube", d: "slab", p: "slope", m: "micro" };
   const COLORS = [
     ["Craie", "#f2f0eb"], ["Galet", "#c9c6bd"], ["Ardoise", "#6d6a73"], ["Charbon", "#2b2a33"],
     ["Tomate", "#e5484d"], ["Mandarine", "#f76b15"], ["Citron", "#ffc53d"], ["Sable", "#e8c9a0"],
@@ -259,16 +316,16 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   const controls = new THREE.OrbitControls(camera, canvas);
   controls.enableDamping = true;
   controls.dampingFactor = 0.12;
-  controls.minDistance = 4;
+  controls.minDistance = 2;
   controls.maxDistance = 120;
   controls.screenSpacePanning = false; // glisser à deux doigts / clic droit = avancer sur le sol
   controls.maxPolarAngle = Math.PI / 2 - 0.04;
   controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
   controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
 
-  function lookAt(cx, cy, cz) {
+  function lookAt(cx, cy, cz, dist = 1) {
     // Recule en portrait pour que la construction tienne en largeur
-    const far = Math.max(1, 1.25 / Math.max(camera.aspect, 0.3));
+    const far = dist * Math.max(1, 1.25 / Math.max(camera.aspect, 0.3));
     camera.position.set(cx + 17 * far, cy + 13 * far, cz + 21 * far);
     controls.target.set(cx, cy, cz);
     controls.update();
@@ -279,7 +336,6 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   scene.add(new THREE.HemisphereLight(0xffffff, 0x9aa6b8, 0.62));
   scene.add(new THREE.AmbientLight(0xffffff, 0.18));
   const sun = new THREE.DirectionalLight(0xffffff, 0.72);
-  sun.position.set(14, 26, 10);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   Object.assign(sun.shadow.camera, { left: -28, right: 28, top: 28, bottom: -28, near: 1, far: 120 });
@@ -340,7 +396,8 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
   new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
-  // Texture partagée : un léger liseré sur chaque face pour lire les blocs un par un
+  // ---------- Formes ----------
+  // Texture partagée : un léger liseré sur chaque face pour lire les pièces une par une
   const faceTex = (() => {
     const c = document.createElement("canvas");
     c.width = c.height = 64;
@@ -353,75 +410,149 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     return t;
   })();
 
-  const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-  const mats = new Map();
-  const matFor = (hex) => {
-    if (!mats.has(hex)) mats.set(hex, new THREE.MeshStandardMaterial({ color: hex, map: faceTex, roughness: 0.62, metalness: 0 }));
-    return mats.get(hex);
+  // Pente dans un cube de 1 centré : basse côté +z, haute côté -z (rotation 0)
+  function wedgeGeometry() {
+    const A = [-0.5, -0.5, 0.5], B = [0.5, -0.5, 0.5], C = [0.5, -0.5, -0.5], D = [-0.5, -0.5, -0.5];
+    const E = [-0.5, 0.5, -0.5], F = [0.5, 0.5, -0.5];
+    const inside = [0, -0.2, -0.2];
+    const pos = [], uv = [];
+    const sub = (a, b) => a.map((v, i) => v - b[i]);
+    const face = (pts, uvs) => {
+      const [a, b, c] = pts, u = sub(b, a), v = sub(c, a);
+      const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+      const out = sub(a, inside);
+      if (n[0] * out[0] + n[1] * out[1] + n[2] * out[2] < 0) { pts = pts.slice().reverse(); uvs = uvs.slice().reverse(); }
+      for (let i = 1; i < pts.length - 1; i++) {
+        pos.push(...pts[0], ...pts[i], ...pts[i + 1]);
+        uv.push(...uvs[0], ...uvs[i], ...uvs[i + 1]);
+      }
+    };
+    const sq = [[0, 0], [1, 0], [1, 1], [0, 1]];
+    face([A, B, C, D], sq);
+    face([D, C, F, E], sq);
+    face([A, B, F, E], sq);
+    face([A, D, E], [[1, 0], [0, 0], [0, 1]]);
+    face([B, C, F], [[0, 0], [1, 0], [1, 1]]);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+    g.computeVertexNormals();
+    return g;
+  }
+  const geos = {
+    cube: new THREE.BoxGeometry(1, 1, 1),
+    slab: new THREE.BoxGeometry(1, 0.5, 1),
+    slope: wedgeGeometry(),
+    micro: new THREE.BoxGeometry(0.5, 0.5, 0.5),
   };
+  const blockMat = new THREE.MeshStandardMaterial({ map: faceTex, roughness: 0.62, metalness: 0 });
 
+  // ---------- Pièces ----------
+  // Un seul objet instancié par forme, la couleur est portée par chaque instance :
+  // des dizaines de milliers de pièces restent fluides, même avec les couleurs d'une image.
   const blockGroup = new THREE.Group();
   scene.add(blockGroup);
-  const blocks = new Map(); // "x,y,z" -> { color, idx }
-  const key = (x, y, z) => x + "," + y + "," + z;
-  const unkey = (k) => k.split(",").map(Number);
-  const inBounds = (x, y, z) =>
-    Number.isInteger(x) && Number.isInteger(y) && Number.isInteger(z) &&
-    y >= 0 && y < MAX_H && Math.abs(x) < LIMIT && Math.abs(z) < LIMIT;
+  const pieces = new Map(); // id -> { shape, o: [x, y, z] en unités fines, rot, color, idx }
+  const occ = new Map(); // case fine "x,y,z" -> id
+  let nextId = 1;
+  const newId = () => "p" + nextId++;
+  const fkey = (x, y, z) => x + "," + y + "," + z;
+  const cellsOf = (shape, o) => {
+    const [sx, sy, sz] = SHAPES[shape].size, out = [];
+    for (let dx = 0; dx < sx; dx++) for (let dy = 0; dy < sy; dy++) for (let dz = 0; dz < sz; dz++) {
+      out.push(fkey(o[0] + dx, o[1] + dy, o[2] + dz));
+    }
+    return out;
+  };
+  const inWorld = (shape, o) =>
+    o.every(Number.isInteger) && o[1] >= 0 && o[1] + SHAPES[shape].size[1] <= MAX_H &&
+    Math.abs(o[0]) < LIMIT && Math.abs(o[2]) < LIMIT;
+  const dataOf = (id) => {
+    const p = pieces.get(id);
+    return p ? { shape: p.shape, o: p.o.slice(), rot: p.rot, color: p.color } : null;
+  };
 
-  // Un seul objet instancié par couleur : des dizaines de milliers de blocs restent fluides
-  const buckets = new Map(); // couleur -> { mesh, keys, cap }
-  const tmpM = new THREE.Matrix4();
-  function grow(b, hex, cap) {
-    const m = new THREE.InstancedMesh(boxGeo, matFor(hex), cap);
+  const buckets = {};
+  const tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), tmpP = new THREE.Vector3();
+  const tmpC = new THREE.Color(), ONE = new THREE.Vector3(1, 1, 1), UP = new THREE.Vector3(0, 1, 0);
+  function grow(shape, cap) {
+    const b = buckets[shape] || (buckets[shape] = { mesh: null, ids: [], cap: 0 });
+    const m = new THREE.InstancedMesh(geos[shape], blockMat, cap);
+    m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3);
     m.castShadow = m.receiveShadow = true;
     m.frustumCulled = false;
-    m.userData.bucket = b;
+    m.userData.shape = shape;
     if (b.mesh) {
-      for (let i = 0; i < b.keys.length; i++) { b.mesh.getMatrixAt(i, tmpM); m.setMatrixAt(i, tmpM); }
+      m.instanceMatrix.array.set(b.mesh.instanceMatrix.array);
+      m.instanceColor.array.set(b.mesh.instanceColor.array);
       blockGroup.remove(b.mesh);
       b.mesh.dispose();
     }
-    m.count = b.keys.length;
+    m.count = b.ids.length;
     b.mesh = m;
     b.cap = cap;
     blockGroup.add(m);
   }
-  function setBlock(k, color) {
-    const old = blocks.get(k);
+  Object.keys(SHAPES).forEach((s) => grow(s, 256));
+
+  function placeMatrix(d) {
+    const s = SHAPES[d.shape].size;
+    tmpP.set((d.o[0] + s[0] / 2) / 2, (d.o[1] + s[1] / 2) / 2, (d.o[2] + s[2] / 2) / 2);
+    tmpQ.setFromAxisAngle(UP, (d.rot || 0) * Math.PI / 2);
+    return tmpM.compose(tmpP, tmpQ, ONE);
+  }
+  function setPiece(id, d) {
+    const old = pieces.get(id);
     if (old) {
-      const b = buckets.get(old.color), last = b.keys.length - 1;
+      const b = buckets[old.shape], last = b.ids.length - 1;
       if (old.idx !== last) {
-        const lk = b.keys[last];
-        b.mesh.getMatrixAt(last, tmpM);
-        b.mesh.setMatrixAt(old.idx, tmpM);
-        b.keys[old.idx] = lk;
-        blocks.get(lk).idx = old.idx;
+        const lid = b.ids[last];
+        b.mesh.getMatrixAt(last, tmpM); b.mesh.setMatrixAt(old.idx, tmpM);
+        b.mesh.getColorAt(last, tmpC); b.mesh.setColorAt(old.idx, tmpC);
+        b.ids[old.idx] = lid;
+        pieces.get(lid).idx = old.idx;
       }
-      b.keys.pop();
-      b.mesh.count = b.keys.length;
-      b.mesh.instanceMatrix.needsUpdate = true;
-      blocks.delete(k);
+      b.ids.pop();
+      b.mesh.count = b.ids.length;
+      b.mesh.instanceMatrix.needsUpdate = b.mesh.instanceColor.needsUpdate = true;
+      cellsOf(old.shape, old.o).forEach((k) => occ.delete(k));
+      pieces.delete(id);
     }
-    if (!color) return;
-    let b = buckets.get(color);
-    if (!b) { b = { mesh: null, keys: [], cap: 0 }; buckets.set(color, b); grow(b, color, 64); }
-    if (b.keys.length >= b.cap) grow(b, color, b.cap * 2);
-    const [x, y, z] = unkey(k);
-    const i = b.keys.length;
-    b.mesh.setMatrixAt(i, tmpM.makeTranslation(x + 0.5, y + 0.5, z + 0.5));
-    b.keys.push(k);
-    b.mesh.count = b.keys.length;
-    b.mesh.instanceMatrix.needsUpdate = true;
-    blocks.set(k, { color, idx: i });
+    if (!d) return;
+    const b = buckets[d.shape];
+    if (b.ids.length >= b.cap) grow(d.shape, b.cap * 2);
+    const i = b.ids.length;
+    b.mesh.setMatrixAt(i, placeMatrix(d));
+    b.mesh.setColorAt(i, tmpC.set(d.color));
+    b.ids.push(id);
+    b.mesh.count = b.ids.length;
+    b.mesh.instanceMatrix.needsUpdate = b.mesh.instanceColor.needsUpdate = true;
+    pieces.set(id, { shape: d.shape, o: d.o.slice(), rot: d.rot || 0, color: d.color, idx: i });
+    cellsOf(d.shape, d.o).forEach((k) => occ.set(k, id));
+  }
+
+  // Ajoute des pièces sans chevauchement (ni avec l'existant, ni entre elles)
+  function addOps(list, freed = new Set()) {
+    const taken = new Set(), ops = [];
+    for (const d of list) {
+      if (!inWorld(d.shape, d.o)) continue;
+      const cells = cellsOf(d.shape, d.o);
+      if (cells.some((k) => (occ.has(k) && !freed.has(occ.get(k))) || taken.has(k))) continue;
+      cells.forEach((k) => taken.add(k));
+      ops.push({ id: newId(), before: null, after: d });
+    }
+    return ops;
+  }
+  function replaceAllOps(list) {
+    const ids = [...pieces.keys()];
+    return [...ids.map((id) => ({ id, before: dataOf(id), after: null })), ...addOps(list, new Set(ids))];
   }
 
   // ---------- Historique ----------
   const undoStack = [], redoStack = [];
   function commit(ops) {
-    ops = ops.filter((o) => o.before !== o.after);
     if (!ops.length) return false;
-    ops.forEach((o) => setBlock(o.k, o.after));
+    ops.forEach((o) => setPiece(o.id, o.after));
     undoStack.push(ops);
     if (undoStack.length > 300) undoStack.shift();
     redoStack.length = 0;
@@ -430,28 +561,35 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   }
   function undo() {
     const ops = undoStack.pop(); if (!ops) return;
-    for (let i = ops.length - 1; i >= 0; i--) setBlock(ops[i].k, ops[i].before);
+    for (let i = ops.length - 1; i >= 0; i--) setPiece(ops[i].id, ops[i].before);
     redoStack.push(ops); changed();
   }
   function redo() {
     const ops = redoStack.pop(); if (!ops) return;
-    ops.forEach((o) => setBlock(o.k, o.after));
+    ops.forEach((o) => setPiece(o.id, o.after));
     undoStack.push(ops); changed();
   }
-  const op = (k, after) => ({ k, before: blocks.has(k) ? blocks.get(k).color : null, after });
 
   // ---------- Sauvegarde ----------
-  const serialize = () => [...blocks].map(([k, b]) => [...unkey(k), b.color.slice(1)]);
-  function load(list) {
-    [...blocks.keys()].forEach((k) => setBlock(k, null));
-    for (const [x, y, z, c] of list) {
-      if (inBounds(x, y, z) && /^[0-9a-f]{6}$/i.test(c)) setBlock(key(x, y, z), "#" + c.toLowerCase());
+  // Format : [forme, x, y, z, rotation, couleur] en unités fines. L'ancien format [x, y, z, couleur]
+  // (blocs entiers uniquement) se relit toujours.
+  const serialize = () => [...pieces.values()].map((p) => [SHAPES[p.shape].code, ...p.o, p.rot, p.color.slice(1)]);
+  function parseList(list) {
+    if (!Array.isArray(list)) throw new Error("format");
+    const out = [];
+    for (const e of list) {
+      if (!Array.isArray(e)) continue;
+      const d = typeof e[0] === "string"
+        ? { shape: BY_CODE[e[0]], o: [e[1], e[2], e[3]], rot: (((e[4] | 0) % 4) + 4) % 4, color: "#" + String(e[5]).toLowerCase() }
+        : { shape: "cube", o: [e[0] * 2, e[1] * 2, e[2] * 2], rot: 0, color: "#" + String(e[3]).toLowerCase() };
+      if (d.shape && /^#[0-9a-f]{6}$/.test(d.color) && inWorld(d.shape, d.o)) out.push(d);
     }
+    return out;
   }
   let saveTimer = 0;
   function changed() {
-    const n = blocks.size;
-    $("count").textContent = n + (n > 1 ? " blocs" : " bloc");
+    const n = pieces.size;
+    $("count").textContent = n + (n > 1 ? " pièces" : " pièce");
     $("undo").disabled = !undoStack.length;
     $("redo").disabled = !redoStack.length;
     clearTimeout(saveTimer);
@@ -459,49 +597,48 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
       try { localStorage.setItem(STORE_KEY, JSON.stringify(serialize())); } catch (e) {}
     }, 300);
   }
-  const encode = () => "BAB1:" + btoa(JSON.stringify(serialize()));
-  function decode(text) {
-    const s = text.trim().replace(/^BAB1:/, "");
-    const list = JSON.parse(atob(s));
-    if (!Array.isArray(list)) throw new Error("format");
-    return list;
-  }
+  const encode = () => "BAB2:" + btoa(JSON.stringify(serialize()));
+  const decode = (text) => parseList(JSON.parse(atob(text.trim().replace(/^BAB\d:/, ""))));
 
-  // ---------- Exemple : une petite maison au bord d'un étang ----------
+  // ---------- Exemple : une maison au toit en pente, un chemin de demi-blocs, des fleurs en micro-cubes ----------
   function sample() {
     const out = [];
-    const put = (x, y, z, c) => out.push([x, y, z, c]);
-    const W = "f2f0eb", R = "e5484d", Wd = "a0703f", G = "30a46c", L = "a4d13f", B = "3e9fe8", S = "e8c9a0", Gl = "7ce2fe", Y = "ffc53d";
+    const cube = (x, y, z, c, shape = "cube", rot = 0) => out.push({ shape, o: [x * 2, y * 2, z * 2], rot, color: "#" + c });
+    const micro = (x, y, z, c) => out.push({ shape: "micro", o: [x, y, z], rot: 0, color: "#" + c });
+    const W = "f2f0eb", R = "e5484d", Wd = "a0703f", G = "30a46c", L = "a4d13f", B = "3e9fe8", Gl = "7ce2fe";
     for (let x = -4; x <= 2; x++) for (let z = -3; z <= 2; z++) {
-      const edge = x === -4 || x === 2 || z === -3 || z === 2;
+      if (!(x === -4 || x === 2 || z === -3 || z === 2)) continue;
       for (let y = 0; y < 4; y++) {
-        if (!edge) continue;
-        const door = z === 2 && x === -1 && y < 2;
+        if (z === 2 && x === -1 && y < 2) continue;
         const win = y === 2 && ((z === 2 && (x === -3 || x === 1)) || (x === 2 && z === -1) || (x === -4 && z === 0));
-        if (door) continue;
-        put(x, y, z, win ? Gl : (x === -4 || x === 2) && (z === -3 || z === 2) ? Wd : W);
+        cube(x, y, z, win ? Gl : (x === -4 || x === 2) && (z === -3 || z === 2) ? Wd : W);
       }
     }
-    for (let s = 0; s < 4; s++) for (let x = -5 + s; x <= 3 - s; x++) for (let z = -4; z <= 3; z++) {
-      if (x === -5 + s || x === 3 - s || s === 3) put(x, 4 + s, z, R);
+    // Pignons : on bouche les triangles au-dessus des murs avant et arrière
+    for (let s = 0; s < 3; s++) for (let x = -4 + s; x <= 2 - s; x++) for (const z of [-3, 2]) cube(x, 4 + s, z, W);
+    // Toit : des pentes qui montent vers le faîtage, un demi-bloc au sommet
+    for (let s = 0; s < 4; s++) for (let z = -4; z <= 3; z++) {
+      cube(-5 + s, 4 + s, z, R, "slope", 3);
+      cube(3 - s, 4 + s, z, R, "slope", 1);
     }
-    put(1, 7, -2, "6d6a73"); put(1, 8, -2, "6d6a73");
-    for (let z = 3; z <= 8; z++) put(-1, 0, z, S);
-    for (let y = 0; y < 3; y++) put(6, y, -4, Wd);
-    for (let x = 5; x <= 7; x++) for (let z = -5; z <= -3; z++) for (let y = 3; y <= 4; y++) put(x, y, z, (x + z + y) % 2 ? G : L);
-    put(6, 5, -4, L);
+    for (let z = -4; z <= 3; z++) cube(-1, 7, z, R, "slab");
+    cube(1, 7, -2, "6d6a73"); cube(1, 8, -2, "6d6a73");
+    for (let z = 3; z <= 8; z++) cube(-1, 0, z, "e8c9a0", "slab");
+    for (let y = 0; y < 3; y++) cube(6, y, -4, Wd);
+    for (let x = 5; x <= 7; x++) for (let z = -5; z <= -3; z++) for (let y = 3; y <= 4; y++) cube(x, y, z, (x + z + y) % 2 ? G : L);
+    cube(6, 5, -4, L);
     for (let x = 4; x <= 8; x++) for (let z = 3; z <= 7; z++) {
       const d = Math.hypot(x - 6, z - 5);
-      if (d < 2.4) put(x, 0, z, d < 1.4 ? "3e63dd" : B);
+      if (d < 2.4) cube(x, 0, z, d < 1.4 ? "3e63dd" : B, "slab");
     }
-    [[-7, 4], [-7, 6], [-6, -6], [8, 0]].forEach(([x, z]) => { put(x, 0, z, G); put(x, 1, z, Y); });
+    [[-14, 8, "ffc53d"], [-13, 12, "d6409f"], [-11, -12, "ffc53d"], [16, 1, "f5a7c4"], [-5, 9, "6e56cf"], [-1, 13, "e5484d"]].forEach(([x, z, c]) => {
+      micro(x, 0, z, G); micro(x, 1, z, G); micro(x, 2, z, c);
+    });
     return out;
   }
 
   // ---------- Interface ----------
-  let tool = "place";
-  let color = COLORS[14][1];
-  let mirror = false;
+  let tool = "place", shape = "cube", color = COLORS[14][1], mirror = false, rotOffset = 0;
 
   const palette = $("palette");
   function renderPalette() {
@@ -546,16 +683,36 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     document.querySelectorAll("[data-tool]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.tool === t));
     updateHover();
   }
+  function setShape(s) {
+    shape = s;
+    document.querySelectorAll("[data-shape]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.shape === s));
+    $("rotate").hidden = s !== "slope";
+    if (tool !== "place" && tool !== "paint") setTool("place");
+    updateHover();
+  }
   function setMirror(on) {
     mirror = on;
     $("mirror").setAttribute("aria-pressed", on);
     mirrorPlane.visible = on;
     updateHover();
   }
+  function rotate() { rotOffset = (rotOffset + 1) % 4; updateHover(); }
   document.querySelectorAll("[data-tool]").forEach((b) => (b.onclick = () => setTool(b.dataset.tool)));
+  document.querySelectorAll("[data-shape]").forEach((b) => (b.onclick = () => setShape(b.dataset.shape)));
+  $("rotate").onclick = rotate;
   $("mirror").onclick = () => setMirror(!mirror);
   $("undo").onclick = undo;
   $("redo").onclick = redo;
+
+  let hintTimer = 0;
+  function showHint(text, ms = 2600) {
+    const h = $("hint");
+    h.textContent = text;
+    h.classList.remove("gone");
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(hideHint, ms);
+  }
+  function hideHint() { clearTimeout(hintTimer); $("hint").classList.add("gone"); }
 
   const menu = $("menu"), menuBtn = $("menu-btn");
   const openMenu = (on) => {
@@ -568,18 +725,12 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   $("m-view").onclick = () => { resetView(); openMenu(false); };
   $("m-home").onclick = () => {
     openMenu(false);
-    if (!blocks.size) return resetView();
+    if (!pieces.size) return resetView();
     let sx = 0, sz = 0;
-    blocks.forEach((_, k) => { const [x, , z] = unkey(k); sx += x; sz += z; });
-    lookAt(Math.round(sx / blocks.size), 2, Math.round(sz / blocks.size));
+    pieces.forEach((p) => { sx += p.o[0]; sz += p.o[2]; });
+    lookAt(Math.round(sx / pieces.size / 2), 2, Math.round(sz / pieces.size / 2));
   };
-  $("m-sample").onclick = () => {
-    const before = new Map([...blocks].map(([k, b]) => [k, b.color]));
-    const after = new Map(sample().map(([x, y, z, c]) => [key(x, y, z), "#" + c]));
-    const ops = [];
-    new Set([...before.keys(), ...after.keys()]).forEach((k) => ops.push({ k, before: before.get(k) || null, after: after.get(k) || null }));
-    commit(ops); openMenu(false);
-  };
+  $("m-sample").onclick = () => { commit(replaceAllOps(sample())); openMenu(false); };
   let clearArm = 0;
   $("m-clear").onclick = () => {
     const b = $("m-clear");
@@ -591,7 +742,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     }
     clearTimeout(clearArm);
     b.classList.remove("armed"); b.textContent = "Tout effacer";
-    commit([...blocks.keys()].map((k) => op(k, null)));
+    commit(replaceAllOps([]));
     openMenu(false);
   };
   $("m-copy").onclick = () => {
@@ -604,88 +755,190 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   $("m-load").onclick = () => {
     const btn = $("m-load");
     try {
-      const list = decode($("code").value);
-      const before = new Map([...blocks].map(([k, b]) => [k, b.color]));
-      const after = new Map();
-      list.forEach(([x, y, z, c]) => { if (inBounds(x, y, z) && /^[0-9a-f]{6}$/i.test(c)) after.set(key(x, y, z), "#" + c.toLowerCase()); });
-      const ops = [];
-      new Set([...before.keys(), ...after.keys()]).forEach((k) => ops.push({ k, before: before.get(k) || null, after: after.get(k) || null }));
-      commit(ops); openMenu(false);
+      commit(replaceAllOps(decode($("code").value)));
+      openMenu(false);
     } catch (e) {
       btn.textContent = "Code illisible";
       setTimeout(() => (btn.textContent = "Charger"), 1800);
     }
   };
 
-  // ---------- Pointage ----------
+  // Photo : l'image s'affiche, on l'enregistre par appui long ou clic droit
+  $("m-photo").onclick = () => {
+    openMenu(false);
+    ghosts.forEach((g) => (g.visible = false));
+    renderer.render(scene, camera);
+    $("photo-img").src = canvas.toDataURL("image/png");
+    $("photo").hidden = false;
+    updateHover();
+  };
+  $("photo-close").onclick = () => { $("photo").hidden = true; };
+
+  // Image → pixel art : chaque pixel devient un bloc ou un micro-cube de sa couleur
+  let imageShape = "micro";
+  $("m-img-micro").onclick = () => { imageShape = "micro"; $("img-file").click(); };
+  $("m-img-cube").onclick = () => { imageShape = "cube"; $("img-file").click(); };
+  $("img-file").addEventListener("change", (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    openMenu(false);
+    if (!f) return;
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => { buildImage(img, imageShape); URL.revokeObjectURL(url); };
+    img.onerror = () => { showHint("Ce fichier n'est pas une image lisible. Essaie un PNG ou un JPG."); URL.revokeObjectURL(url); };
+    img.src = url;
+  });
+  function buildImage(img, s) {
+    const max = s === "micro" ? 64 : 32;
+    const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * k)), h = Math.max(1, Math.round(img.naturalHeight * k));
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const g = c.getContext("2d");
+    g.drawImage(img, 0, 0, w, h);
+    const px = g.getImageData(0, 0, w, h).data;
+    // Le mur se dresse face à la caméra, centré sur le point visé
+    camera.getWorldDirection(fwd);
+    const alongX = Math.abs(fwd.z) >= Math.abs(fwd.x);
+    const dir = alongX ? (fwd.z < 0 ? 1 : -1) : (fwd.x < 0 ? -1 : 1);
+    const size = SHAPES[s].size[0];
+    const snap = (v) => Math.floor((v * 2) / size) * size;
+    const baseA = snap(alongX ? controls.target.x : controls.target.z);
+    const depth = snap(alongX ? controls.target.z : controls.target.x);
+    const list = [];
+    for (let row = 0; row < h; row++) for (let col = 0; col < w; col++) {
+      const i = (row * w + col) * 4;
+      if (px[i + 3] < 128) continue;
+      const a = baseA + dir * (col - Math.floor(w / 2)) * size - (dir < 0 ? size : 0);
+      const y = (h - 1 - row) * size;
+      const hex = "#" + ((1 << 24) | (px[i] << 16) | (px[i + 1] << 8) | px[i + 2]).toString(16).slice(1);
+      list.push({ shape: s, o: alongX ? [a, y, depth] : [depth, y, a], rot: 0, color: hex });
+    }
+    const ops = addOps(list);
+    if (!commit(ops)) return showHint("Aucune place libre ici pour l'image. Déplace-toi sur une zone vide.");
+    showHint("Image ajoutée : " + ops.length + " " + (s === "micro" ? "micro-cubes" : "blocs") + ". Annuler la retire.", 4000);
+    const tall = (h * size) / 2;
+    lookAt(controls.target.x, Math.min(tall / 2, 30), controls.target.z, Math.max(1, tall / 18));
+  }
+
+  // ---------- Viser ----------
   const ray = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
-  function pick(clientX, clientY) {
+  const fwd = new THREE.Vector3(), nrm = new THREE.Vector3();
+  function aim(clientX, clientY) {
     const r = canvas.getBoundingClientRect();
     ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
     const hit = ray.intersectObjects([blockGroup, ground], true)[0];
     if (!hit) return null;
-    if (hit.object === ground) {
-      const x = Math.floor(hit.point.x), z = Math.floor(hit.point.z);
-      return inBounds(x, 0, z) ? { place: [x, 0, z], block: null } : null;
-    }
-    const [x, y, z] = unkey(hit.object.userData.bucket.keys[hit.instanceId]);
-    const n = hit.face.normal;
-    return { place: [x + Math.round(n.x), y + Math.round(n.y), z + Math.round(n.z)], block: [x, y, z] };
+    const P = [hit.point.x * 2, hit.point.y * 2, hit.point.z * 2];
+    if (hit.object === ground) return { id: null, P, axis: 1, sign: 1 };
+    const id = buckets[hit.object.userData.shape].ids[hit.instanceId];
+    hit.object.getMatrixAt(hit.instanceId, tmpM);
+    nrm.copy(hit.face.normal).transformDirection(tmpM);
+    // Face penchée d'une pente : on pose dessus, comme sur le haut d'un bloc
+    const ab = [Math.abs(nrm.x), Math.abs(nrm.y), Math.abs(nrm.z)];
+    const axis = ab[1] >= Math.max(ab[0], ab[2]) - 1e-3 ? 1 : ab[0] > ab[2] ? 0 : 2;
+    return { id, P, axis, sign: Math.sign(nrm.getComponent(axis)) || 1 };
   }
-  const mirrored = ([x, y, z]) => [-x - 1, y, z];
-  const targets = (cell) => (mirror ? [cell, mirrored(cell)] : [cell]);
+  // Où poser une pièce de forme s contre la face visée : collée à la face, calée sur la pièce touchée
+  function placeAt(t, s) {
+    const size = SHAPES[s].size, o = [0, 0, 0];
+    const q = t.id ? pieces.get(t.id) : null;
+    for (let i = 0; i < 3; i++) {
+      if (i === t.axis) continue;
+      const ref = q ? q.o[i] : 0;
+      o[i] = ref + Math.floor((t.P[i] - ref) / size[i] + 1e-6) * size[i];
+    }
+    if (!q) o[1] = 0;
+    else {
+      const qs = SHAPES[q.shape].size[t.axis];
+      o[t.axis] = t.sign > 0 ? q.o[t.axis] + qs : q.o[t.axis] - size[t.axis];
+    }
+    return o;
+  }
+  // Une pente monte en s'éloignant de la caméra, le bouton Tourner ajoute un quart de tour
+  function slopeRot() {
+    camera.getWorldDirection(fwd);
+    const base = Math.abs(fwd.z) >= Math.abs(fwd.x) ? (fwd.z < 0 ? 0 : 2) : (fwd.x < 0 ? 1 : 3);
+    return (base + rotOffset) % 4;
+  }
+  const mirrorData = (d) => ({
+    ...d,
+    o: [-(d.o[0] + SHAPES[d.shape].size[0]), d.o[1], d.o[2]],
+    rot: d.shape === "slope" ? (4 - d.rot) % 4 : d.rot,
+  });
+  function targetIds(id) {
+    const ids = [id];
+    if (mirror) {
+      const p = pieces.get(id);
+      const other = occ.get(fkey(-p.o[0] - 1, p.o[1], p.o[2]));
+      if (other && other !== id) ids.push(other);
+    }
+    return ids;
+  }
+  function plannedPiece(t) {
+    return { shape, o: placeAt(t, shape), rot: shape === "slope" ? slopeRot() : 0, color };
+  }
 
-  function act(p, mode) {
-    if (!p) return;
+  function act(t, mode) {
+    if (!t) return;
     if (mode === "place") {
-      const ops = targets(p.place).filter((c) => inBounds(...c)).map((c) => key(...c)).filter((k) => !blocks.has(k)).map((k) => op(k, color));
-      commit(ops);
-    } else if (!p.block) {
+      const d = plannedPiece(t);
+      commit(addOps(mirror ? [d, mirrorData(d)] : [d]));
       return;
-    } else if (mode === "erase") {
-      commit(targets(p.block).map((c) => key(...c)).filter((k) => blocks.has(k)).map((k) => op(k, null)));
+    }
+    if (!t.id) return;
+    if (mode === "erase") {
+      commit(targetIds(t.id).map((id) => ({ id, before: dataOf(id), after: null })));
     } else if (mode === "paint") {
-      commit(targets(p.block).map((c) => key(...c)).filter((k) => blocks.has(k)).map((k) => op(k, color)));
+      commit(targetIds(t.id).filter((id) => pieces.get(id).color !== color)
+        .map((id) => ({ id, before: dataOf(id), after: { ...dataOf(id), color } })));
     } else if (mode === "pick") {
-      setColor(blocks.get(key(...p.block)).color);
+      const p = pieces.get(t.id);
+      setColor(p.color);
+      setShape(p.shape);
       setTool("place");
     }
   }
 
-  // Aperçus : bloc fantôme pour poser, cadre pour viser un bloc existant
+  // Aperçus : pièce fantôme pour poser, cadre pour viser une pièce existante
   const ghostMat = new THREE.MeshStandardMaterial({ color, transparent: true, opacity: 0.45, depthWrite: false });
   const frameGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.04, 1.04, 1.04));
   const makeGhost = () => {
     const g = new THREE.Group();
-    const cube = new THREE.Mesh(boxGeo, ghostMat);
+    const body = new THREE.Mesh(geos.cube, ghostMat);
     const frame = new THREE.LineSegments(frameGeo, new THREE.LineBasicMaterial({ color: 0x1f2430, transparent: true, opacity: 0.55 }));
-    g.add(cube, frame);
-    g.userData = { cube, frame };
+    g.add(body, frame);
+    g.userData = { body, frame };
     g.visible = false;
     scene.add(g);
     return g;
   };
   const ghosts = [makeGhost(), makeGhost()];
   let hoverXY = null;
-
+  function showGhost(g, d, solid) {
+    placeMatrix(d).decompose(g.position, g.quaternion, tmpP);
+    const s = SHAPES[d.shape].size;
+    g.userData.body.geometry = geos[d.shape];
+    g.userData.body.visible = solid;
+    g.userData.frame.scale.set(s[0] / 2, s[1] / 2, s[2] / 2);
+    g.userData.frame.material.color.set(tool === "erase" ? 0xd93d42 : 0x1f2430);
+    g.visible = true;
+  }
   function updateHover() {
     ghosts.forEach((g) => (g.visible = false));
     if (!hoverXY) return;
-    const p = pick(hoverXY[0], hoverXY[1]);
-    if (!p) return;
-    const cell = tool === "place" ? p.place : p.block;
-    if (!cell) return;
-    targets(cell).forEach((c, i) => {
-      if (!inBounds(...c)) return;
-      if (tool !== "place" && !blocks.has(key(...c))) return;
-      const g = ghosts[i];
-      g.position.set(c[0] + 0.5, c[1] + 0.5, c[2] + 0.5);
-      g.userData.cube.visible = tool === "place";
-      g.userData.frame.material.color.set(tool === "erase" ? 0xd93d42 : 0x1f2430);
-      g.visible = true;
-    });
+    const t = aim(hoverXY[0], hoverXY[1]);
+    if (!t) return;
+    if (tool === "place") {
+      const d = plannedPiece(t);
+      const list = mirror ? [d, mirrorData(d)] : [d];
+      list.forEach((p, i) => { if (inWorld(p.shape, p.o)) showGhost(ghosts[i], p, true); });
+    } else if (t.id) {
+      targetIds(t.id).forEach((id, i) => showGhost(ghosts[i], pieces.get(id), false));
+    }
   }
 
   // Distinguer un toucher (action) d'un glissé (rotation de la caméra)
@@ -695,7 +948,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   canvas.addEventListener("pointerdown", (e) => {
     downs.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now(), button: e.button, shift: e.shiftKey, alt: e.altKey });
     if (downs.size > 1) gestureMulti = true;
-    if (e.pointerType !== "mouse") hoverXY = null, updateHover();
+    if (e.pointerType !== "mouse") { hoverXY = null; updateHover(); }
     hideHint();
   });
   canvas.addEventListener("pointermove", (e) => {
@@ -714,24 +967,11 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     const moved = Math.hypot(e.clientX - d.x, e.clientY - d.y);
     if (moved > 7 || performance.now() - d.t > 600) return;
     const mode = d.shift ? "erase" : d.alt ? "pick" : tool;
-    act(pick(e.clientX, e.clientY), mode);
+    act(aim(e.clientX, e.clientY), mode);
     if (e.pointerType === "mouse") { hoverXY = [e.clientX, e.clientY]; updateHover(); }
   };
   canvas.addEventListener("pointerup", endPointer);
   canvas.addEventListener("pointercancel", endPointer);
-
-  window.addEventListener("keydown", (e) => {
-    if (e.target.closest && e.target.closest("textarea, input")) return;
-    if (MOVE_KEYS[e.code] && !e.ctrlKey && !e.metaKey) { held.add(e.code); e.preventDefault(); return; }
-    const k = e.key.toLowerCase();
-    if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
-    if ((e.ctrlKey || e.metaKey) && k === "y") { e.preventDefault(); redo(); return; }
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
-    const map = { 1: "place", 2: "erase", 3: "paint", 4: "pick" };
-    if (map[k]) setTool(map[k]);
-    else if (k === "m") setMirror(!mirror);
-    else if (k === "escape") openMenu(false);
-  });
 
   // Avancer au clavier : ZQSD sur AZERTY, WASD sur QWERTY (même position physique), ou les flèches
   const MOVE_KEYS = {
@@ -739,9 +979,24 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0],
   };
   const held = new Set();
+  window.addEventListener("keydown", (e) => {
+    if (e.target.closest && e.target.closest("textarea, input")) return;
+    if (MOVE_KEYS[e.code] && !e.ctrlKey && !e.metaKey) { held.add(e.code); e.preventDefault(); return; }
+    const k = e.key.toLowerCase();
+    if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+    if ((e.ctrlKey || e.metaKey) && k === "y") { e.preventDefault(); redo(); return; }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const tools = { 1: "place", 2: "erase", 3: "paint", 4: "pick" };
+    const shapes = { 5: "cube", 6: "slab", 7: "slope", 8: "micro" };
+    if (tools[k]) setTool(tools[k]);
+    else if (shapes[k]) setShape(shapes[k]);
+    else if (k === "r") rotate();
+    else if (k === "m") setMirror(!mirror);
+    else if (k === "escape") { openMenu(false); $("photo").hidden = true; }
+  });
   window.addEventListener("keyup", (e) => held.delete(e.code));
   window.addEventListener("blur", () => held.clear());
-  const fwd = new THREE.Vector3(), side = new THREE.Vector3(), step = new THREE.Vector3();
+  const side = new THREE.Vector3(), step = new THREE.Vector3();
   function walk(dt) {
     if (!held.size) return;
     let f = 0, s = 0;
@@ -758,8 +1013,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     if (hoverXY) updateHover();
   }
 
-  let hintTimer = setTimeout(hideHint, 7000);
-  function hideHint() { clearTimeout(hintTimer); $("hint").classList.add("gone"); }
+  hintTimer = setTimeout(hideHint, 7000);
   if (matchMedia("(hover: hover) and (pointer: fine)").matches) {
     $("hint").textContent = "Clic pour poser · glisser pour tourner · clic droit ou ZQSD pour avancer · Maj+clic pour effacer";
   }
@@ -777,12 +1031,16 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
 
   function start(data) {
     renderPalette();
-    let list = data && Array.isArray(data.blocks) ? data.blocks : null;
+    let list = null;
+    try { if (data && Array.isArray(data.blocks)) list = parseList(data.blocks); } catch (e) {}
     if (!list) {
-      try { const s = localStorage.getItem(STORE_KEY); if (s) list = JSON.parse(s); } catch (e) {}
+      for (const k of [STORE_KEY, OLD_STORE_KEY]) {
+        try { const s = localStorage.getItem(k); if (s) { list = parseList(JSON.parse(s)); break; } } catch (e) {}
+      }
     }
-    load(list || sample());
+    addOps(list || sample()).forEach((o) => setPiece(o.id, o.after));
     setColor(color);
+    setShape("cube");
     setTool("place");
     changed();
     const clock = new THREE.Clock();

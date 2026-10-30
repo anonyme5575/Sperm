@@ -332,6 +332,11 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       <button id="m-img-micro">Image → micro-cubes <small>PNG, JPG</small></button>
       <button id="m-img-cube">Image → blocs <small>PNG, JPG</small></button>
       <input type="file" id="img-file" accept="image/*" hidden>
+      <p class="sec">Bâtisseurs</p>
+      <button id="m-turbo">Construction rapide <small id="m-turbo-st">non</small></button>
+      <button id="m-mc-file">Construction Minecraft <small>.schem, .schematic</small></button>
+      <button id="m-mc-url">Minecraft depuis un lien <small>URL du fichier</small></button>
+      <input type="file" id="mc-file" accept=".schem,.schematic,.nbt" hidden>
       <p class="sec">Partager</p>
       <div class="code-box">
         <p>Le code contient toute ta construction. Garde-le pour la retrouver ailleurs ou l'envoyer à quelqu'un.</p>
@@ -1878,6 +1883,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
   function builderTurn(id, p, u) {
     const pickBp = () => (p.b >= 0 ? p.b : Math.floor(Math.random() * BLUEPRINTS.length));
     if (!p.w) p.w = [Math.floor(p.o[0] / 2), Math.ceil(p.o[1] / 2), Math.floor(p.o[2] / 2), p.rot, 0, pickBp(), 1];
+    if (site) return siteTurn(id, p, u);
     const plan = planFor(p.w, p.color);
     let k = p.w[4];
     // Une case déjà prise par un bloc : il passe à la pièce suivante
@@ -1894,12 +1900,12 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     const d = plan[k];
     const tx = d.o[0] + 1, tz = d.o[2] + 1;
     const blocked = cellsOf(d.shape, d.o).some((c) => occ.has(c));
-    const near = Math.max(Math.abs(tx - p.o[0] - 0.5), Math.abs(tz - p.o[2] - 0.5)) <= 3.5;
+    const near = Math.max(Math.abs(tx - p.o[0] - 0.5), Math.abs(tz - p.o[2] - 0.5)) <= (turbo ? 9 : 3.5);
     if (!blocked && (near || u.stuck > 12) && inWorld(d.shape, d.o)) {
       setPiece(newId(), d);
       p.w[4] = k + 1;
       p.rot = faceToward(p, tx, tz);
-      u.work = 0.45; u.wait = 0.55; u.stuck = 0;
+      u.work = 0.45; u.wait = turbo ? 0.06 : 0.55; u.stuck = 0;
       npcEdited();
       return true;
     }
@@ -1907,6 +1913,169 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     u.stuck++;
     return false; // il fait un pas au hasard pour se dégager
   }
+
+  // ---------- Chantier Minecraft ----------
+  // Tous les bâtisseurs piochent dans une seule file (du bas vers le haut) : chacun réserve sa pièce, personne ne se gêne.
+  let turbo = false, site = null;
+  const blockAt = (d) => cellsOf(d.shape, d.o).some((c) => occ.has(c) && pieces.get(occ.get(c)).shape !== "npc");
+  function siteTurn(id, p, u) {
+    if (!p.task || p.task.done) {
+      while (site.k < site.plan.length && blockAt(site.plan[site.k])) site.k++;
+      if (site.k >= site.plan.length) {
+        if (![...pieces.values()].some((q) => q.task && !q.task.done)) { news("Chantier Minecraft terminé : " + site.plan.length + " blocs."); site = null; }
+        return false;
+      }
+      p.task = site.plan[site.k++];
+    }
+    const d = p.task, tx = d.o[0] + 1, tz = d.o[2] + 1;
+    const near = Math.max(Math.abs(tx - p.o[0] - 0.5), Math.abs(tz - p.o[2] - 0.5)) <= (turbo ? 12 : 4);
+    if (near || u.stuck > 8) {
+      // En mode rapide, il pose une rafale de pièces d'un coup
+      for (let n = turbo ? 8 : 1; n > 0 && p.task; n--) {
+        const t = p.task;
+        if (!cellsOf(t.shape, t.o).some((c) => occ.has(c))) setPiece(newId(), t);
+        else if (!blockAt(t)) site.plan.push({ ...t }); // un bonhomme est dessus : on la remet en fin de file
+        t.done = true;
+        p.task = n > 1 && site.k < site.plan.length ? site.plan[site.k++] : null;
+      }
+      p.rot = faceToward(p, tx, tz);
+      u.work = 0.4; u.wait = turbo ? 0.05 : 0.45; u.stuck = 0;
+      npcEdited();
+      return true;
+    }
+    if (stepToward(id, p, u, tx, tz)) return true;
+    u.stuck++;
+    return false;
+  }
+  function setTurbo(on) { turbo = on; $("m-turbo-st").textContent = on ? "oui" : "non"; }
+  $("m-turbo").onclick = () => setTurbo(!turbo);
+
+  // NBT (format des fichiers Minecraft), compressé en gzip
+  async function readNbt(buf) {
+    let b = new Uint8Array(buf);
+    if (b[0] === 0x1f && b[1] === 0x8b) b = new Uint8Array(await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
+    const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
+    let i = 0;
+    const str = () => { const n = v.getUint16(i); i += 2; const t = new TextDecoder().decode(b.subarray(i, i + n)); i += n; return t; };
+    const arr = (sz, get) => { const n = v.getInt32(i); i += 4; const a = new Array(n); for (let k = 0; k < n; k++) { a[k] = get(i); i += sz; } return a; };
+    const read = (t) => {
+      switch (t) {
+        case 1: return v.getInt8(i++);
+        case 2: i += 2; return v.getInt16(i - 2);
+        case 3: i += 4; return v.getInt32(i - 4);
+        case 4: i += 8; return v.getInt32(i - 4);
+        case 5: i += 4; return v.getFloat32(i - 4);
+        case 6: i += 8; return v.getFloat64(i - 8);
+        case 7: { const n = v.getInt32(i); i += 4 + n; return b.subarray(i - n, i); }
+        case 8: return str();
+        case 9: { const et = v.getInt8(i++), n = v.getInt32(i); i += 4; const a = []; for (let k = 0; k < n; k++) a.push(read(et)); return a; }
+        case 10: { const o = {}; for (;;) { const tt = v.getInt8(i++); if (!tt) return o; const name = str(); o[name] = read(tt); } }
+        case 11: return arr(4, (j) => v.getInt32(j));
+        case 12: return arr(8, (j) => v.getInt32(j + 4));
+      }
+      throw new Error("NBT invalide");
+    };
+    const t = v.getInt8(i++); str();
+    return read(t);
+  }
+  const MC_WORDS = { white: "#f2f0eb", orange: "#f76b15", magenta: "#d6409f", light_blue: "#7ce2fe", yellow: "#ffc53d", lime: "#a4d13f",
+    pink: "#f5a7c4", light_gray: "#c9c6bd", gray: "#6d6a73", cyan: "#12a594", purple: "#6e56cf", blue: "#3e63dd", brown: "#a0703f",
+    green: "#30a46c", red: "#e5484d", black: "#2b2a33" };
+  const MC_MATS = [[/water/, "#3e9fe8"], [/lava|magma/, "#f76b15"], [/leaves|moss|vine/, "#30a46c"], [/grass_block|grass_path|dirt_path/, "#a4d13f"],
+    [/dirt|mud|podzol|farmland|mycelium/, "#7a5230"], [/sand(?!stone)/, "#e8d6a0"], [/sandstone/, "#e8c9a0"], [/glass|ice/, "#9fdcff"],
+    [/stone_brick|mossy/, "#8b8d98"], [/brick|terracotta|granite/, "#b5523b"], [/gold/, "#ffc53d"], [/diamond|prismarine/, "#5fd1c4"], [/snow|quartz|calcite|bone|birch/, "#f2f0eb"],
+    [/dark_oak|spruce|mangrove/, "#6b4426"], [/oak|jungle|acacia|plank|log|wood|barrel|bookshelf|crafting|chest|door|fence|trapdoor/, "#a0703f"],
+    [/deepslate|blackstone|basalt|obsidian|coal/, "#3a3940"], [/cobble|andesite|tuff|furnace/, "#6d6a73"], [/stone|gravel|ore|diorite|iron/, "#8b8d98"],
+    [/netherrack|nether_brick|crimson/, "#7a2a2a"], [/warped/, "#12a594"], [/hay/, "#ffc53d"]];
+  const MC_SKIP = /air|void|torch|flower|tulip|poppy|dandelion|grass$|fern|bush|sapling|rail|button|lever|sign|banner|carpet|pressure_plate|redstone_wire|tripwire|ladder|lantern|candle|head|skull|pot|seagrass|kelp|cobweb|snow\[layers|structure_void|barrier|light\[|fire|frame|item|rod|chain|bars|pane|wall_|_wall\b|coral_fan|lily|mushroom|cane|wheat|carrots|potatoes|beetroots|crop/;
+  const LEGACY = { 1: "stone", 2: "grass_block", 3: "dirt", 4: "cobblestone", 5: "oak_planks", 7: "deepslate", 8: "water", 9: "water", 10: "lava", 11: "lava",
+    12: "sand", 13: "gravel", 14: "gold_ore", 15: "iron_ore", 16: "coal_ore", 17: "oak_log", 18: "oak_leaves", 20: "glass", 24: "sandstone", 41: "gold_block",
+    42: "iron_block", 43: "stone_slab", 44: "stone_slab", 45: "bricks", 47: "bookshelf", 48: "cobblestone", 49: "obsidian", 53: "oak_stairs", 57: "diamond_block",
+    67: "cobblestone_stairs", 79: "ice", 80: "snow_block", 82: "clay", 87: "netherrack", 89: "glowstone", 98: "stone_bricks", 112: "nether_bricks",
+    125: "oak_planks", 126: "oak_slab", 155: "quartz_block", 159: "terracotta", 172: "terracotta", 179: "red_sandstone" };
+  const WOOL16 = Object.keys(MC_WORDS);
+  function mcPiece(name) {
+    name = name.replace(/^minecraft:/, "");
+    if (MC_SKIP.test(name)) return null;
+    const base = name.split("[")[0];
+    const word = Object.keys(MC_WORDS).sort((a, b) => b.length - a.length).find((w) => base.startsWith(w + "_"));
+    const mat = MC_MATS.find(([re]) => re.test(base));
+    const color = word && !/oak|birch|spruce/.test(base) ? MC_WORDS[word] : mat ? mat[1] : "#9a9aa0";
+    return { color, shape: /slab/.test(base) && !/type=double/.test(name) ? "slab" : "cube", top: /type=top/.test(name) };
+  }
+  // Lit un .schem (Sponge v1-3) ou un .schematic (ancien format) et renvoie une file de pièces posée devant la caméra
+  function mcPlan(root) {
+    const S = root.Schematic || root, W = S.Width, H = S.Height, L = S.Length;
+    if (!W || !H || !L) throw new Error("format non reconnu (il faut un .schem ou un .schematic)");
+    let pick;
+    if (S.Blocks && S.Blocks.Palette || S.Palette) {
+      const pal = (S.Blocks && S.Blocks.Palette) || S.Palette, data = (S.Blocks && S.Blocks.Data) || S.BlockData, names = [];
+      for (const k in pal) names[pal[k]] = mcPiece(k);
+      const ids = new Int32Array(W * H * L);
+      for (let i = 0, n = 0; n < ids.length && i < data.length; n++) { // entiers à longueur variable
+        let val = 0, sh = 0, c;
+        do { c = data[i++]; val |= (c & 127) << sh; sh += 7; } while (c & 128);
+        ids[n] = val;
+      }
+      pick = (n) => names[ids[n]];
+    } else {
+      const cache = {};
+      pick = (n) => { const id = S.Blocks[n] & 255, dv = S.Data ? S.Data[n] & 15 : 0, k = id + ":" + dv;
+        if (!(k in cache)) cache[k] = id === 35 || id === 159 || id === 95 ? mcPiece(WOOL16[dv] + "_wool") : LEGACY[id] ? mcPiece(LEGACY[id] + (id === 44 || id === 126 ? (dv & 8 ? "[type=top]" : "[type=bottom]") : "")) : id ? mcPiece("block") : null;
+        return cache[k]; };
+    }
+    const grid = new Array(W * H * L);
+    for (let n = 0; n < grid.length; n++) grid[n] = pick(n);
+    const at = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < W && y < H && z < L ? grid[(y * L + z) * W + x] : null;
+    const cx = Math.round(controls.target.x / 2 - W / 2), cz = Math.round(controls.target.z / 2 - L / 2), out = [];
+    for (let y = 0; y < H; y++) for (let z = 0; z < L; z++) for (let x = 0; x < W; x++) {
+      const q = at(x, y, z);
+      if (!q) continue;
+      // Bloc entièrement caché par ses voisins : inutile de le poser
+      if ([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].every(([a, b, c]) => { const r = at(x + a, y + b, z + c); return r && r.shape === "cube"; })) continue;
+      out.push({ shape: q.shape, o: [(cx + x) * 2, y * 2 + (q.top ? 1 : 0), (cz + z) * 2], rot: 0, color: q.color });
+    }
+    if (out.length > 40000) throw new Error(out.length + " blocs visibles : trop gros (40 000 au plus)");
+    return out;
+  }
+  async function mcLoad(buf, label) {
+    try {
+      const plan = mcPlan(await readNbt(buf)).filter((d) => inWorld(d.shape, d.o));
+      if (!plan.length) throw new Error("aucun bloc reconnu");
+      site = { plan, k: 0 };
+      // Il faut des bâtisseurs : on en fait venir jusqu'à 6
+      let crew = [...pieces.values()].filter((q) => q.shape === "npc" && q.j === 1).length;
+      const [ox, , oz] = plan[0].o;
+      for (let n = 0; crew < 6 && n < 60; n++) {
+        const o = [ox - 4 + Math.floor(Math.random() * 8), 0, oz - 6 - Math.floor(Math.random() * 4)];
+        if (freeFor(null, ...o) && supported(null, ...o)) { setPiece(newId(), { shape: "npc", o, rot: 0, color: COLORS[crew % COLORS.length][1], v: Math.floor(Math.random() * 4096), j: 1, w: null }); crew++; }
+      }
+      setSim(true);
+      npcEdited();
+      news(label + " : " + plan.length + " blocs à poser par " + crew + " bâtisseurs.");
+    } catch (e) { showHint("Import Minecraft impossible : " + e.message, 5000); }
+  }
+  // Téléchargement : direct si le site l'autorise, sinon par l'application Android (pas de blocage CORS)
+  async function mcFetch(url) {
+    try { const r = await fetch(url); if (r.ok) return r.arrayBuffer(); } catch (e) {}
+    if (window.Android) {
+      const b64 = window.Android.get(url);
+      if (b64) return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)).buffer;
+    }
+    throw new Error("téléchargement refusé par le site");
+  }
+  $("m-mc-file").onclick = () => { openMenu(false); $("mc-file").click(); };
+  $("mc-file").addEventListener("change", async (e) => {
+    const f = e.target.files[0]; e.target.value = "";
+    if (f) mcLoad(await f.arrayBuffer(), f.name);
+  });
+  $("m-mc-url").onclick = async () => {
+    openMenu(false);
+    const url = prompt("Lien direct vers un fichier .schem ou .schematic");
+    if (!url) return;
+    showHint("Téléchargement…");
+    try { mcLoad(await mcFetch(url.trim()), url.split("/").pop()); } catch (e) { showHint("Import Minecraft impossible : " + e.message, 5000); }
+  };
 
   // Peintre : il repeint de la couleur de son haut un bloc qui le touche (devant, à côté ou sous ses pieds)
   function painterTurn(id, p, u) {

@@ -21,6 +21,7 @@
   --accent: #3e63dd;
   --accent-fg: #ffffff;
   --danger: #d93d42;
+  --scrim: rgba(223, 229, 236, 0.78);
   --font-ui: "Fredoka", ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
@@ -28,14 +29,14 @@
     --scene: #14171d; --ground: #222731; --grid: #343b48;
     --panel: rgba(28, 32, 40, 0.88); --fg: #e8ebf1; --muted: #949db0;
     --line: rgba(232, 235, 241, 0.12); --accent: #6e8cf5; --accent-fg: #0d1020;
-    --danger: #ff6b6f; color-scheme: dark;
+    --danger: #ff6b6f; --scrim: rgba(20, 23, 29, 0.8); color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --scene: #14171d; --ground: #222731; --grid: #343b48;
   --panel: rgba(28, 32, 40, 0.88); --fg: #e8ebf1; --muted: #949db0;
   --line: rgba(232, 235, 241, 0.12); --accent: #6e8cf5; --accent-fg: #0d1020;
-  --danger: #ff6b6f; color-scheme: dark;
+  --danger: #ff6b6f; --scrim: rgba(20, 23, 29, 0.8); color-scheme: dark;
 }
 [hidden] { display: none !important; }
 html, body { height: 100%; }
@@ -56,7 +57,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
 
 /* Barre du haut */
 .top {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 5; pointer-events: none;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 6; pointer-events: none;
   display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
   padding-top: calc(12px + env(safe-area-inset-top, 0px));
   padding-left: max(16px, env(safe-area-inset-left, 0px));
@@ -76,9 +77,18 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
 .icon-btn svg { width: 22px; height: 22px; }
 
 .menu {
-  position: absolute; top: calc(100% + 8px); right: 0; width: min(300px, calc(100vw - 32px));
-  border-radius: 16px; padding: 8px; display: flex; flex-direction: column; gap: 2px;
+  position: absolute; top: calc(100% + 8px); right: 0; width: min(320px, calc(100vw - 32px));
+  border-radius: 18px; padding: 8px; display: flex; flex-direction: column; gap: 2px;
+  max-height: calc(100vh - 110px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); overflow-y: auto;
 }
+.menu .sec {
+  margin: 8px 12px 2px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted);
+}
+.menu .sec:first-child { margin-top: 4px; }
+.menu > button.home-btn { background: var(--accent); color: var(--accent-fg); font-weight: 500; }
+.menu > button.home-btn:hover { background: var(--accent); filter: brightness(1.06); }
+.menu > button.home-btn small { color: inherit; opacity: 0.8; }
 .menu > button {
   border: 0; background: transparent; text-align: left; padding: 10px 12px; border-radius: 10px;
   font-size: 15px; display: flex; justify-content: space-between; align-items: center; gap: 8px;
@@ -128,6 +138,80 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
 .shapes .tool { flex-direction: row; justify-content: center; gap: 6px; padding: 6px 4px; }
 .shapes .tool svg { width: 19px; height: 19px; flex: none; }
 .shapes .tool[data-shape="npc"] { flex: 1.5; }
+.opts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.chip {
+  border: 1px solid var(--line); background: transparent; border-radius: 999px;
+  padding: 5px 12px 5px 9px; font-size: 13.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px;
+}
+.chip svg { width: 17px; height: 17px; }
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: transparent; }
+.opts .label { font-size: 12.5px; color: var(--muted); margin-left: 4px; }
+
+/* Écran d'accueil : la carte flotte sur le monde qui tourne derrière */
+.title {
+  position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; pointer-events: none;
+  padding-top: calc(24px + env(safe-area-inset-top, 0px)); padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: linear-gradient(90deg, var(--scrim) 0%, var(--scrim) 30%, transparent 75%);
+  box-sizing: border-box;
+}
+.title-card {
+  pointer-events: auto; width: min(430px, 100%); max-height: 100%; overflow-y: auto; box-sizing: border-box;
+  border-radius: 26px; padding: 26px 24px 22px; display: flex; flex-direction: column; gap: 18px;
+  margin-left: clamp(0px, 6vw, 88px);
+}
+body.title-open .top, body.title-open .dock { visibility: hidden; }
+.logo { margin: 0; display: flex; flex-wrap: wrap; gap: 10px 16px; }
+.word { display: flex; gap: 5px; }
+.tile {
+  width: 44px; height: 48px; border-radius: 9px; display: grid; place-items: center;
+  font: 600 28px/1 var(--font-ui); background: var(--c); color: var(--tc);
+  box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.18), inset 0 0 0 1px rgba(0, 0, 0, 0.06), 0 4px 10px rgba(20, 24, 34, 0.12);
+  transform: rotate(var(--r)); animation: drop 0.7s cubic-bezier(0.2, 1.5, 0.4, 1) both; animation-delay: var(--d);
+}
+@keyframes drop { from { transform: translateY(-36px) rotate(var(--r)); } }
+.tagline { margin: 0; font-size: 15.5px; line-height: 1.45; color: var(--muted); max-width: 34ch; }
+.t-view { display: flex; flex-direction: column; gap: 8px; }
+.t-btn {
+  border: 1px solid var(--line); background: transparent; border-radius: 14px; padding: 13px 16px;
+  font-size: 17px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; gap: 10px; text-align: left;
+}
+.t-btn:hover { background: var(--line); }
+.t-btn small { font-size: 13px; color: var(--muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.t-btn.primary { background: var(--accent); color: var(--accent-fg); border-color: transparent; box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.16); }
+.t-btn.primary small { color: inherit; opacity: 0.8; }
+.t-head { display: flex; align-items: center; gap: 8px; }
+.t-head h2 { margin: 0; font-size: 20px; font-weight: 600; }
+.back { width: 36px; height: 36px; }
+.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+.field input {
+  font: 500 17px var(--font-ui); color: var(--fg); background: var(--scene); border: 1px solid var(--line);
+  border-radius: 12px; padding: 11px 12px; -webkit-user-select: text; user-select: text;
+}
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.choice {
+  border: 1px solid var(--line); background: transparent; border-radius: 14px; padding: 12px; text-align: left;
+  display: flex; flex-direction: column; gap: 3px; font-size: 15px; font-weight: 500;
+}
+.choice small { font-size: 12.5px; color: var(--muted); font-weight: 400; line-height: 1.35; }
+.choice[aria-checked="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.t-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.t-list li { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 14px; padding: 8px 8px 8px 14px; }
+.t-list .w-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.t-list .w-info strong { font-weight: 500; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.t-list .w-info small { font-size: 12.5px; color: var(--muted); }
+.t-list .pill { flex: none; }
+.t-list .del.armed { background: var(--danger); color: #fff; }
+.t-list .t-empty { border-style: dashed; color: var(--muted); font-size: 14px; padding: 14px; }
+.help { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; font-size: 14.5px; }
+.help dt { font-weight: 600; }
+.help dd { margin: 0; color: var(--muted); }
+@media (max-width: 560px) {
+  .title { align-items: flex-end; background: linear-gradient(0deg, var(--scrim) 0%, var(--scrim) 45%, transparent 85%); }
+  .title-card { margin: 0 auto; padding: 22px 18px 18px; gap: 14px; }
+  .tile { width: 36px; height: 40px; font-size: 23px; border-radius: 8px; }
+  .t-btn { padding: 12px 14px; font-size: 16px; }
+}
 .dock-card > .shapes { border-top: 1px solid var(--line); padding-top: 8px; }
 
 .photo {
@@ -173,6 +257,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
 }
 @media (prefers-reduced-motion: reduce) {
   .swatch, .hint { transition: none; }
+  .tile { animation: none; }
 }
 </style>
 </head>
@@ -182,7 +267,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
 
 <header class="top">
   <div class="brand panel">
-    <strong>Boîte à Blocs</strong>
+    <strong id="world-name">Boîte à Blocs</strong>
     <span><span id="count">0 pièce</span> · <span id="pos" title="Position (est, sud)">0, 0</span></span>
   </div>
   <div class="actions panel">
@@ -196,17 +281,21 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
       <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
     </button>
     <div class="menu panel" id="menu" hidden>
-      <button id="m-view">Revenir au centre</button>
+      <button id="m-title" class="home-btn">Menu principal <small>mondes, aide</small></button>
+      <p class="sec">Vue</p>
       <button id="m-home">Aller à ma construction</button>
+      <button id="m-view">Revenir au centre <small>0, 0</small></button>
+      <p class="sec">Bonshommes</p>
+      <button id="m-walk">Les mettre en pause <small>ils bougent</small></button>
+      <p class="sec">Monde</p>
       <button id="m-sample">Charger l'exemple <small>remplace tout</small></button>
       <button id="m-clear">Tout effacer</button>
-      <hr>
-      <button id="m-walk">Arrêter les bonshommes <small>ils se promènent</small></button>
+      <p class="sec">Images</p>
       <button id="m-photo">Prendre une photo <small>PNG</small></button>
       <button id="m-img-micro">Image → micro-cubes <small>PNG, JPG</small></button>
       <button id="m-img-cube">Image → blocs <small>PNG, JPG</small></button>
       <input type="file" id="img-file" accept="image/*" hidden>
-      <hr>
+      <p class="sec">Partager</p>
       <div class="code-box">
         <p>Le code contient toute ta construction. Garde-le pour la retrouver ailleurs ou l'envoyer à quelqu'un.</p>
         <textarea id="code" aria-label="Code de la construction" spellcheck="false" placeholder="Colle un code ici"></textarea>
@@ -266,12 +355,68 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="8.5" y="2.5" width="7" height="6" rx="1"/><path d="M7 10h10v6H7zM9 16v6M15 16v6"/></svg>
         Bonhomme
       </button>
-      <button class="tool" id="rotate" title="Tourner la pente ou le bonhomme (R)" hidden>
+    </div>
+    <div class="opts" id="opts" hidden>
+      <button class="chip" id="rotate" title="Tourner (R)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>
         Tourner
       </button>
+      <span class="label" id="job-label">Métier</span>
+      <button class="chip" data-job="0" aria-pressed="true" title="Il se promène">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4.5" r="2"/><path d="m9 21 2.5-6.5L14 17v4M7 12l3-4h4l2 4M11.5 14.5 13 8"/></svg>
+        Promeneur
+      </button>
+      <button class="chip" data-job="1" aria-pressed="false" title="Il construit une cabane">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/></svg>
+        Bâtisseur
+      </button>
+      <button class="chip" data-job="2" aria-pressed="false" title="Il repeint les blocs qu'il croise">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h13v5H4z"/><path d="M17 6.5h3V12h-8v3"/><path d="M10.5 15h3v6h-3z"/></svg>
+        Peintre
+      </button>
     </div>
     <div class="palette" id="palette" role="radiogroup" aria-label="Couleurs"></div>
+  </div>
+</div>
+
+<div class="title" id="title" role="dialog" aria-label="Menu principal" hidden>
+  <div class="title-card panel">
+    <h1 class="logo" id="logo" aria-label="Boîte à Blocs"></h1>
+    <p class="tagline">Pose des blocs de couleur dans un monde sans bord, et regarde tes bonshommes y vivre, construire et peindre.</p>
+
+    <div class="t-view" id="t-main">
+      <button class="t-btn primary" id="t-continue"><span>Continuer</span><small id="t-continue-name"></small></button>
+      <button class="t-btn" id="t-new"><span>Nouveau monde</span></button>
+      <button class="t-btn" id="t-worlds"><span>Mes mondes</span><small id="t-worlds-count"></small></button>
+      <button class="t-btn" id="t-help"><span>Comment jouer</span></button>
+    </div>
+
+    <div class="t-view" id="t-new-view" hidden>
+      <div class="t-head"><button class="icon-btn back" data-back aria-label="Retour"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button><h2>Nouveau monde</h2></div>
+      <label class="field">Nom du monde<input id="t-name" maxlength="40" autocomplete="off"></label>
+      <div class="choices" role="radiogroup" aria-label="Départ">
+        <button class="choice" data-start="empty" role="radio" aria-checked="true">Terrain vide<small>Une grille à perte de vue.</small></button>
+        <button class="choice" data-start="sample" role="radio" aria-checked="false">Avec l'exemple<small>Une maison, un étang et quatre bonshommes.</small></button>
+      </div>
+      <button class="t-btn primary" id="t-create"><span>Créer et jouer</span></button>
+    </div>
+
+    <div class="t-view" id="t-worlds-view" hidden>
+      <div class="t-head"><button class="icon-btn back" data-back aria-label="Retour"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button><h2>Mes mondes</h2></div>
+      <ul class="t-list" id="t-list"></ul>
+    </div>
+
+    <div class="t-view" id="t-help-view" hidden>
+      <div class="t-head"><button class="icon-btn back" data-back aria-label="Retour"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button><h2>Comment jouer</h2></div>
+      <dl class="help">
+        <dt>Poser</dt><dd>Touche le sol ou une face. Choisis la forme et la couleur en bas.</dd>
+        <dt>Tourner la vue</dt><dd>Glisse à un doigt, ou clic gauche glissé.</dd>
+        <dt>Avancer, zoomer</dt><dd>Deux doigts, ou clic droit et molette. ZQSD au clavier.</dd>
+        <dt>Bonshommes</dt><dd>Forme « Bonhomme », puis un métier : le promeneur flâne, le bâtisseur construit une cabane, le peintre repeint ce qu'il croise de la couleur de son haut.</dd>
+        <dt>Symétrie</dt><dd>Tout ce que tu fais est recopié en miroir.</dd>
+        <dt>Sauvegarde</dt><dd>Automatique, dans ce navigateur. Le code du menu ⋯ transporte un monde ailleurs.</dd>
+      </dl>
+    </div>
   </div>
 </div>
 
@@ -479,7 +624,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     Math.abs(o[0]) < LIMIT && Math.abs(o[2]) < LIMIT;
   const dataOf = (id) => {
     const p = pieces.get(id);
-    return p ? { shape: p.shape, o: p.o.slice(), rot: p.rot, color: p.color, v: p.v } : null;
+    return p ? { shape: p.shape, o: p.o.slice(), rot: p.rot, color: p.color, v: p.v, j: p.j, w: p.w ? p.w.slice() : null } : null;
   };
 
   const buckets = {};
@@ -547,6 +692,12 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     part(box(0.1, 0.36, 0.13), shirt, 0, -0.17, 0, armR);
     part(box(0.09, 0.09, 0.11), skin, 0, -0.39, 0, armL);
     part(box(0.09, 0.09, 0.11), skin, 0, -0.39, 0, armR);
+    // L'outil du métier, tenu dans la main droite
+    if (d.j === 1) part(box(0.17, 0.17, 0.17), shirt, 0, -0.44, 0.09, armR);
+    if (d.j === 2) {
+      part(box(0.04, 0.04, 0.28), plain("#a0703f"), 0, -0.42, 0.14, armR);
+      part(box(0.08, 0.08, 0.09), shirt, 0, -0.42, 0.31, armR);
+    }
     const head = new THREE.Group();
     head.position.set(0, 0.98, 0);
     g.add(head);
@@ -557,7 +708,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     part(box(0.34, 0.09, 0.32), hair, 0, 0.32, -0.01, head);
     if (style === 1) part(box(0.34, 0.2, 0.08), hair, 0, 0.2, -0.13, head); // cheveux longs derrière
     if (style === 2) { part(box(0.36, 0.05, 0.4), shirt, 0, 0.36, 0.03, head); part(box(0.26, 0.12, 0.26), shirt, 0, 0.42, -0.02, head); } // casquette
-    g.userData = { legL, legR, armL, armR, head, from: new THREE.Vector3(), to: new THREE.Vector3(), t: 1, wait: Math.random() * 2, phase: 0, look: 0 };
+    g.userData = { legL, legR, armL, armR, head, from: new THREE.Vector3(), to: new THREE.Vector3(), t: 1, wait: Math.random() * 2, phase: 0, look: 0, work: 0, stuck: 0 };
     npcGroup.add(g);
     return g;
   }
@@ -602,7 +753,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
       npcSpot(o, obj.position);
       obj.rotation.y = (d.rot || 0) * Math.PI / 2;
       obj.userData.to.copy(obj.position);
-      pieces.set(id, { shape: "npc", o, rot: d.rot || 0, color: d.color, v: d.v | 0, obj });
+      pieces.set(id, { shape: "npc", o, rot: d.rot || 0, color: d.color, v: d.v | 0, j: d.j | 0, w: d.w ? d.w.slice() : null, obj });
       cellsOf("npc", o).forEach((k) => occ.set(k, id));
       return;
     }
@@ -662,7 +813,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   // (blocs entiers uniquement) se relit toujours.
   const serialize = () => [...pieces.values()].map((p) => {
     const row = [SHAPES[p.shape].code, ...p.o, p.rot, p.color.slice(1)];
-    if (p.shape === "npc") row.push(p.v);
+    if (p.shape === "npc") row.push(p.v, p.j, p.w || 0);
     return row;
   });
   function parseList(list) {
@@ -671,16 +822,20 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     for (const e of list) {
       if (!Array.isArray(e)) continue;
       const d = typeof e[0] === "string"
-        ? { shape: BY_CODE[e[0]], o: [e[1], e[2], e[3]], rot: (((e[4] | 0) % 4) + 4) % 4, color: "#" + String(e[5]).toLowerCase(), v: e[6] | 0 }
+        ? { shape: BY_CODE[e[0]], o: [e[1], e[2], e[3]], rot: (((e[4] | 0) % 4) + 4) % 4, color: "#" + String(e[5]).toLowerCase(), v: e[6] | 0,
+            j: Math.min(2, Math.max(0, e[7] | 0)), w: Array.isArray(e[8]) && e[8].length === 5 && e[8].every(Number.isInteger) ? e[8] : null }
         : { shape: "cube", o: [e[0] * 2, e[1] * 2, e[2] * 2], rot: 0, color: "#" + String(e[3]).toLowerCase() };
       if (d.shape && /^#[0-9a-f]{6}$/.test(d.color) && inWorld(d.shape, d.o)) out.push(d);
     }
     return out;
   }
   let saveTimer = 0;
-  function changed() {
+  function updateCount() {
     const n = pieces.size;
     $("count").textContent = n + (n > 1 ? " pièces" : " pièce");
+  }
+  function changed() {
+    updateCount();
     $("undo").disabled = !undoStack.length;
     $("redo").disabled = !redoStack.length;
     saveSoon();
@@ -688,10 +843,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   // Au plus une écriture toutes les 0,8 s : les bonshommes bougent sans arrêt
   function saveSoon() {
     if (saveTimer) return;
-    saveTimer = setTimeout(() => {
-      saveTimer = 0;
-      try { localStorage.setItem(STORE_KEY, JSON.stringify(serialize())); } catch (e) {}
-    }, 800);
+    saveTimer = setTimeout(() => { saveTimer = 0; saveNow(); }, 800);
   }
   const encode = () => "BAB2:" + btoa(JSON.stringify(serialize()));
   const decode = (text) => parseList(JSON.parse(atob(text.trim().replace(/^BAB\d:/, ""))));
@@ -730,13 +882,13 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     [[-14, 8, "ffc53d"], [-13, 12, "d6409f"], [-11, -12, "ffc53d"], [16, 1, "f5a7c4"], [-5, 9, "6e56cf"], [-1, 13, "e5484d"]].forEach(([x, z, c]) => {
       micro(x, 0, z, G); micro(x, 1, z, G); micro(x, 2, z, c);
     });
-    [[-3, 12, "e5484d", 5], [4, 9, "ffc53d", 600], [-9, 2, "30a46c", 1100], [9, -2, "6e56cf", 1500]].forEach(([x, z, c, v]) =>
-      out.push({ shape: "npc", o: [x, 0, z], rot: 0, color: "#" + c, v }));
+    [[-3, 12, "e5484d", 5, 0], [4, 9, "ffc53d", 600, 2], [-9, 2, "30a46c", 1100, 0], [16, -6, "3e9fe8", 1500, 1]].forEach(([x, z, c, v, j]) =>
+      out.push({ shape: "npc", o: [x, 0, z], rot: j === 1 ? 1 : 0, color: "#" + c, v, j, w: null }));
     return out;
   }
 
   // ---------- Interface ----------
-  let tool = "place", shape = "cube", color = COLORS[14][1], mirror = false, rotOffset = 0;
+  let tool = "place", shape = "cube", color = COLORS[14][1], mirror = false, rotOffset = 0, job = 0;
 
   const palette = $("palette");
   function renderPalette() {
@@ -784,7 +936,8 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   function setShape(s) {
     shape = s;
     document.querySelectorAll("[data-shape]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.shape === s));
-    $("rotate").hidden = !TURNS.has(s);
+    $("opts").hidden = !TURNS.has(s);
+    document.querySelectorAll("[data-job], #job-label").forEach((b) => (b.hidden = s !== "npc"));
     if (tool !== "place" && tool !== "paint") setTool("place");
     updateHover();
   }
@@ -795,6 +948,11 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     updateHover();
   }
   function rotate() { rotOffset = (rotOffset + 1) % 4; updateHover(); }
+  function setJob(j) {
+    job = j;
+    document.querySelectorAll("[data-job]").forEach((b) => b.setAttribute("aria-pressed", +b.dataset.job === j));
+  }
+  document.querySelectorAll("[data-job]").forEach((b) => (b.onclick = () => setJob(+b.dataset.job)));
   document.querySelectorAll("[data-tool]").forEach((b) => (b.onclick = () => setTool(b.dataset.tool)));
   document.querySelectorAll("[data-shape]").forEach((b) => (b.onclick = () => setShape(b.dataset.shape)));
   $("rotate").onclick = rotate;
@@ -821,13 +979,13 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   menuBtn.onclick = (e) => { e.stopPropagation(); openMenu(menu.hidden); };
   document.addEventListener("pointerdown", (e) => { if (!menu.hidden && !e.target.closest(".actions")) openMenu(false); });
   $("m-view").onclick = () => { resetView(); openMenu(false); };
-  $("m-home").onclick = () => {
-    openMenu(false);
+  function goHome() {
     if (!pieces.size) return resetView();
     let sx = 0, sz = 0;
     pieces.forEach((p) => { sx += p.o[0]; sz += p.o[2]; });
     lookAt(Math.round(sx / pieces.size / 2), 2, Math.round(sz / pieces.size / 2));
-  };
+  }
+  $("m-home").onclick = () => { openMenu(false); goHome(); };
   $("m-sample").onclick = () => { commit(replaceAllOps(sample())); openMenu(false); };
   let clearArm = 0;
   $("m-clear").onclick = () => {
@@ -985,7 +1143,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   // Un bonhomme posé regarde la caméra, une pente monte en s'en éloignant : même quart de tour
   function plannedPiece(t) {
     const d = { shape, o: placeAt(t, shape), rot: TURNS.has(shape) ? slopeRot() : 0, color };
-    if (shape === "npc") d.v = Math.floor(Math.random() * 4096);
+    if (shape === "npc") Object.assign(d, { v: Math.floor(Math.random() * 4096), j: job, w: null });
     return d;
   }
 
@@ -1006,6 +1164,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
       const p = pieces.get(t.id);
       setColor(p.color);
       setShape(p.shape);
+      if (p.shape === "npc") setJob(p.j);
       setTool("place");
     }
   }
@@ -1036,7 +1195,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   }
   function updateHover() {
     ghosts.forEach((g) => (g.visible = false));
-    if (!hoverXY) return;
+    if (!hoverXY || titleOpen) return;
     const t = aim(hoverXY[0], hoverXY[1]);
     if (!t) return;
     if (tool === "place") {
@@ -1070,7 +1229,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     downs.delete(e.pointerId);
     const multi = gestureMulti;
     if (!downs.size) gestureMulti = false;
-    if (!d || multi || e.type === "pointercancel" || d.button !== 0) return;
+    if (!d || multi || e.type === "pointercancel" || d.button !== 0 || titleOpen) return;
     const moved = Math.hypot(e.clientX - d.x, e.clientY - d.y);
     if (moved > 7 || performance.now() - d.t > 600) return;
     const mode = d.shift ? "erase" : d.alt ? "pick" : tool;
@@ -1088,6 +1247,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   const held = new Set();
   window.addEventListener("keydown", (e) => {
     if (e.target.closest && e.target.closest("textarea, input")) return;
+    if (titleOpen) return;
     if (MOVE_KEYS[e.code] && !e.ctrlKey && !e.metaKey) { held.add(e.code); e.preventDefault(); return; }
     const k = e.key.toLowerCase();
     if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
@@ -1095,6 +1255,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const tools = { 1: "place", 2: "erase", 3: "paint", 4: "pick" };
     const shapes = { 5: "cube", 6: "slab", 7: "slope", 8: "micro", 9: "npc" };
+    if (k === "j" && shape === "npc") return setJob((job + 1) % 3);
     if (tools[k]) setTool(tools[k]);
     else if (shapes[k]) setShape(shapes[k]);
     else if (k === "r") rotate();
@@ -1120,10 +1281,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     if (hoverXY) updateHover();
   }
 
-  hintTimer = setTimeout(hideHint, 7000);
-  if (matchMedia("(hover: hover) and (pointer: fine)").matches) {
-    $("hint").textContent = "Clic pour poser · glisser pour tourner · clic droit ou ZQSD pour avancer · Maj+clic pour effacer";
-  }
+  hideHint();
 
   // ---------- Promenade des bonshommes ----------
   // Ils avancent d'un demi-bloc à la fois, montent ou descendent une marche d'un demi-bloc,
@@ -1166,6 +1324,10 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
       const swing = Math.sin(u.phase) * 0.6 * (u.t < 1 ? 1 : 0);
       u.legL.rotation.x = swing; u.legR.rotation.x = -swing;
       u.armL.rotation.x = -swing * 0.8; u.armR.rotation.x = swing * 0.8;
+      if (u.work > 0) { // geste de travail : le bras droit frappe ou balaie
+        u.work = Math.max(0, u.work - dt);
+        u.armR.rotation.x = -1.3 + Math.sin(u.work * 22) * 0.45;
+      }
       u.head.rotation.y += (u.look - u.head.rotation.y) * Math.min(1, dt * 4);
       const target = p.rot * Math.PI / 2;
       let diff = ((target - p.obj.rotation.y) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI;
@@ -1177,32 +1339,307 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
       if (!npcWalk) return;
       u.wait -= dt;
       if (u.wait > 0) return;
-      if (Math.random() < 0.25) { u.wait = 1 + Math.random() * 2.5; u.look = (Math.random() - 0.5) * 1.6; return; }
       u.look = 0;
+      if (p.j === 1 && builderTurn(id, p, u)) return;
+      if (p.j === 2 && painterTurn(id, p, u)) return;
+      if (Math.random() < 0.25) { u.wait = 1 + Math.random() * 2.5; u.look = (Math.random() - 0.5) * 1.6; return; }
       // Préfère continuer tout droit, sinon tourne
       const order = [p.rot, (p.rot + 1) % 4, (p.rot + 3) % 4, (p.rot + 2) % 4];
       if (Math.random() < 0.3) order.reverse();
-      for (const r of order) {
-        const nx = x + DIRS[r][0], nz = z + DIRS[r][1];
-        for (const dy of [0, 1, -1]) {
-          const ny = y + dy;
-          if (dy === 1 && !freeFor(id, x, y + 1, z)) continue; // pas la place de lever la tête
-          if (freeFor(id, nx, ny, nz) && supported(id, nx, ny, nz)) {
-            p.rot = r;
-            u.wait = Math.random() < 0.8 ? 0 : 0.5 + Math.random();
-            return moveNpc(id, p, [nx, ny, nz]);
-          }
-        }
-      }
+      if (order.some((r) => tryStep(id, p, u, r))) return;
       p.rot = (p.rot + 1 + Math.floor(Math.random() * 3)) % 4; // coincé : il se retourne
       u.wait = 0.6 + Math.random();
     });
   }
+  function tryStep(id, p, u, r) {
+    const [x, y, z] = p.o, nx = x + DIRS[r][0], nz = z + DIRS[r][1];
+    for (const dy of [0, 1, -1]) {
+      const ny = y + dy;
+      if (dy === 1 && !freeFor(id, x, y + 1, z)) continue; // pas la place de lever la tête
+      if (freeFor(id, nx, ny, nz) && supported(id, nx, ny, nz)) {
+        p.rot = r;
+        u.wait = Math.random() < 0.8 ? 0 : 0.5 + Math.random();
+        moveNpc(id, p, [nx, ny, nz]);
+        return true;
+      }
+    }
+    return false;
+  }
+  // Un pas qui rapproche du point (tx, tz) en unités fines ; faux si aucun pas ne rapproche
+  function stepToward(id, p, u, tx, tz) {
+    const here = Math.hypot(tx - p.o[0] - 0.5, tz - p.o[2] - 0.5);
+    const order = [0, 1, 2, 3]
+      .map((r) => [r, Math.hypot(tx - p.o[0] - 0.5 - DIRS[r][0], tz - p.o[2] - 0.5 - DIRS[r][1])])
+      .filter(([, d]) => d < here)
+      .sort((a, b) => a[1] - b[1]);
+    return order.some(([r]) => tryStep(id, p, u, r));
+  }
+  const faceToward = (p, tx, tz) => {
+    const dx = tx - p.o[0] - 0.5, dz = tz - p.o[2] - 0.5;
+    return Math.abs(dz) >= Math.abs(dx) ? (dz > 0 ? 0 : 2) : (dx > 0 ? 1 : 3);
+  };
+  function npcEdited() { updateCount(); saveSoon(); }
+
+  // Bâtisseur : une cabane de 3 × 3 blocs devant lui, porte comprise, avec un toit en pente.
+  // Il marche jusqu'à chaque pièce et la pose ; s'il n'arrive pas à s'approcher, il la lance.
+  const shade = (hex, k) => "#" + tmpC.set(hex).multiplyScalar(k).getHexString();
+  function hutPlan(w, color) {
+    const [ax, ay, az, r] = w;
+    const f = DIRS[r], ri = (r + 3) % 4, rt = DIRS[ri], li = (r + 1) % 4;
+    const at = (lx, ly, lz) => [
+      2 * (ax + f[0] * (lz + 1) + rt[0] * (lx - 1)), 2 * (ay + ly), 2 * (az + f[1] * (lz + 1) + rt[1] * (lx - 1)),
+    ];
+    const ring = [[0, 0], [0, 1], [0, 2], [1, 2], [2, 2], [2, 1], [2, 0]]; // (1, 0) reste vide : la porte
+    const plan = [];
+    for (let ly = 0; ly < 2; ly++) ring.forEach(([lx, lz]) => plan.push({ shape: "cube", o: at(lx, ly, lz), rot: 0, color }));
+    const roof = shade(color, 0.72);
+    for (let lz = 0; lz < 3; lz++) {
+      plan.push({ shape: "slope", o: at(0, 2, lz), rot: (ri + 2) % 4, color: roof });
+      plan.push({ shape: "slope", o: at(2, 2, lz), rot: (li + 2) % 4, color: roof });
+      plan.push({ shape: "cube", o: at(1, 2, lz), rot: 0, color: roof });
+    }
+    return plan;
+  }
+  function builderTurn(id, p, u) {
+    if (!p.w) p.w = [Math.floor(p.o[0] / 2), Math.ceil(p.o[1] / 2), Math.floor(p.o[2] / 2), p.rot, 0];
+    const plan = hutPlan(p.w, p.color);
+    let k = p.w[4];
+    // Une case déjà prise par un bloc : il passe à la pièce suivante
+    while (k < plan.length && cellsOf(plan[k].shape, plan[k].o).some((c) => occ.has(c) && pieces.get(occ.get(c)).shape !== "npc")) k++;
+    p.w[4] = k;
+    if (k >= plan.length) return false; // cabane finie : il se promène
+    const d = plan[k];
+    const tx = d.o[0] + 1, tz = d.o[2] + 1;
+    const blocked = cellsOf(d.shape, d.o).some((c) => occ.has(c));
+    const near = Math.max(Math.abs(tx - p.o[0] - 0.5), Math.abs(tz - p.o[2] - 0.5)) <= 3.5;
+    if (!blocked && (near || u.stuck > 12) && inWorld(d.shape, d.o)) {
+      setPiece(newId(), d);
+      p.w[4] = k + 1;
+      p.rot = faceToward(p, tx, tz);
+      u.work = 0.45; u.wait = 0.55; u.stuck = 0;
+      npcEdited();
+      return true;
+    }
+    if (!near && stepToward(id, p, u, tx, tz)) return true;
+    u.stuck++;
+    return false; // il fait un pas au hasard pour se dégager
+  }
+
+  // Peintre : il repeint de la couleur de son haut un bloc qui le touche (devant, à côté ou sous ses pieds)
+  function painterTurn(id, p, u) {
+    if (Math.random() > 0.4) return false;
+    const [x, y, z] = p.o, found = [];
+    for (let r = 0; r < 4; r++) for (let dy = -1; dy <= 2; dy++) {
+      const o = occ.get(fkey(x + DIRS[r][0], y + dy, z + DIRS[r][1]));
+      if (o) found.push([o, r]);
+    }
+    const under = occ.get(fkey(x, y - 1, z));
+    if (under) found.push([under, p.rot]);
+    const todo = found.filter(([o]) => pieces.get(o).shape !== "npc" && pieces.get(o).color !== p.color);
+    if (!todo.length) return false;
+    const [target, r] = todo[Math.floor(Math.random() * todo.length)];
+    setPiece(target, { ...dataOf(target), color: p.color });
+    p.rot = r;
+    u.work = 0.7; u.wait = 0.8 + Math.random() * 1.2;
+    npcEdited();
+    return true;
+  }
   $("m-walk").onclick = () => {
     npcWalk = !npcWalk;
-    $("m-walk").firstChild.textContent = npcWalk ? "Arrêter les bonshommes " : "Faire marcher les bonshommes ";
+    $("m-walk").innerHTML = npcWalk ? "Les mettre en pause <small>ils bougent</small>" : "Les relancer <small>en pause</small>";
     openMenu(false);
   };
+
+  // ---------- Mondes ----------
+  // Chaque monde est enregistré à part ; un index garde le nom, la date et le nombre de pièces.
+  const INDEX_KEY = "boite-a-blocs-mondes", worldKey = (id) => "boite-a-blocs-monde-" + id;
+  const mem = new Map(); // repli si le navigateur refuse le stockage
+  const store = {
+    get(k) { try { const v = localStorage.getItem(k); if (v !== null) return v; } catch (e) {} return mem.has(k) ? mem.get(k) : null; },
+    set(k, v) { mem.set(k, v); try { localStorage.setItem(k, v); } catch (e) {} },
+    del(k) { mem.delete(k); try { localStorage.removeItem(k); } catch (e) {} },
+  };
+  let worlds = [], currentWorld = null, titleOpen = false;
+  function readIndex() {
+    try { worlds = JSON.parse(store.get(INDEX_KEY)) || []; } catch (e) { worlds = []; }
+    if (!Array.isArray(worlds)) worlds = [];
+    if (worlds.length) return;
+    // Reprend la construction des versions précédentes comme premier monde
+    for (const k of [STORE_KEY, OLD_STORE_KEY]) {
+      const raw = store.get(k);
+      if (!raw) continue;
+      let n = 0;
+      try { n = JSON.parse(raw).length; } catch (e) {}
+      const id = "w" + Date.now();
+      store.set(worldKey(id), raw);
+      worlds.push({ id, name: "Mon monde", updated: Date.now(), count: n });
+      writeIndex();
+      return;
+    }
+  }
+  const writeIndex = () => store.set(INDEX_KEY, JSON.stringify(worlds));
+  const byRecent = () => worlds.slice().sort((a, b) => b.updated - a.updated);
+  function worldPieces(id) {
+    try { return parseList(JSON.parse(store.get(worldKey(id)) || "[]")); } catch (e) { return []; }
+  }
+  function showWorld(list) {
+    [...pieces.keys()].forEach((id) => setPiece(id, null));
+    addOps(list).forEach((o) => setPiece(o.id, o.after));
+    undoStack.length = redoStack.length = 0;
+    changed();
+  }
+  function saveNow() {
+    clearTimeout(saveTimer); saveTimer = 0;
+    if (!currentWorld) return;
+    store.set(worldKey(currentWorld), JSON.stringify(serialize()));
+    const w = worlds.find((w) => w.id === currentWorld);
+    if (w) { w.updated = Date.now(); w.count = pieces.size; writeIndex(); }
+  }
+  function openWorld(id) {
+    const w = worlds.find((w) => w.id === id);
+    if (!w) return;
+    currentWorld = id;
+    showWorld(worldPieces(id));
+    $("world-name").textContent = w.name;
+    closeTitle();
+    goHome();
+  }
+  function createWorld(name, withSample) {
+    const id = "w" + Date.now().toString(36) + Math.floor(Math.random() * 1e4);
+    worlds.push({ id, name, updated: Date.now(), count: 0 });
+    store.set(worldKey(id), "[]");
+    writeIndex();
+    openWorld(id);
+    if (withSample) { showWorld(sample()); saveNow(); goHome(); }
+  }
+
+  // ---------- Écran d'accueil ----------
+  (function buildLogo() {
+    const tones = ["#e5484d", "#f76b15", "#ffc53d", "#a4d13f", "#12a594", "#3e9fe8", "#3e63dd", "#6e56cf", "#d6409f"];
+    let n = 0;
+    ["BOÎTE", "À", "BLOCS"].forEach((word) => {
+      const w = document.createElement("span");
+      w.className = "word";
+      w.setAttribute("aria-hidden", "true");
+      for (const ch of word) {
+        const c = tones[n % tones.length];
+        const lum = tmpC.set(c).r * 0.3 + tmpC.g * 0.59 + tmpC.b * 0.11;
+        const t = document.createElement("span");
+        t.className = "tile";
+        t.textContent = ch;
+        t.style.setProperty("--c", c);
+        t.style.setProperty("--tc", lum > 0.6 ? "#1f2430" : "#ffffff");
+        t.style.setProperty("--r", ((n * 37) % 7 - 3) * 0.8 + "deg");
+        t.style.setProperty("--d", n * 55 + "ms");
+        w.appendChild(t);
+        n++;
+      }
+      $("logo").appendChild(w);
+    });
+  })();
+  const ago = (t) => {
+    const m = Math.round((Date.now() - t) / 60000);
+    if (m < 1) return "à l'instant";
+    if (m < 60) return "il y a " + m + " min";
+    if (m < 60 * 24) return "il y a " + Math.round(m / 60) + " h";
+    return "il y a " + Math.round(m / 1440) + " j";
+  };
+  function showView(v) {
+    ["t-main", "t-new-view", "t-worlds-view", "t-help-view"].forEach((id) => ($(id).hidden = id !== v));
+  }
+  function refreshTitle() {
+    const recent = byRecent()[0];
+    $("t-continue").hidden = !recent;
+    if (recent) $("t-continue-name").textContent = recent.name;
+    $("t-new").classList.toggle("primary", !recent);
+    $("t-worlds-count").textContent = worlds.length ? worlds.length + (worlds.length > 1 ? " mondes" : " monde") : "";
+  }
+  function renderWorlds() {
+    const ul = $("t-list");
+    ul.innerHTML = "";
+    if (!worlds.length) {
+      const li = document.createElement("li");
+      li.className = "t-empty";
+      li.textContent = "Aucun monde pour l'instant. Crée le premier avec « Nouveau monde ».";
+      ul.appendChild(li);
+      return;
+    }
+    byRecent().forEach((w) => {
+      const li = document.createElement("li");
+      const info = document.createElement("div");
+      info.className = "w-info";
+      const name = document.createElement("strong");
+      name.textContent = w.name;
+      const meta = document.createElement("small");
+      meta.textContent = w.count + (w.count > 1 ? " pièces · " : " pièce · ") + ago(w.updated);
+      info.append(name, meta);
+      const open = document.createElement("button");
+      open.className = "pill primary";
+      open.textContent = "Jouer";
+      open.onclick = () => openWorld(w.id);
+      const del = document.createElement("button");
+      del.className = "icon-btn del";
+      del.title = "Supprimer";
+      del.setAttribute("aria-label", "Supprimer " + w.name);
+      del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
+      del.onclick = () => {
+        if (!del.classList.contains("armed")) {
+          del.classList.add("armed");
+          del.title = "Toucher encore pour supprimer";
+          setTimeout(() => del.classList.remove("armed"), 3000);
+          return;
+        }
+        store.del(worldKey(w.id));
+        worlds = worlds.filter((x) => x.id !== w.id);
+        writeIndex();
+        if (currentWorld === w.id) { currentWorld = null; showWorld(sample()); }
+        renderWorlds();
+        refreshTitle();
+      };
+      li.append(info, open, del);
+      ul.appendChild(li);
+    });
+  }
+  function openTitle() {
+    saveNow();
+    titleOpen = true;
+    hoverXY = null; updateHover();
+    document.body.classList.add("title-open");
+    $("title").hidden = false;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.5;
+    refreshTitle();
+    showView("t-main");
+  }
+  let firstGame = true;
+  function closeTitle() {
+    titleOpen = false;
+    document.body.classList.remove("title-open");
+    $("title").hidden = true;
+    controls.autoRotate = false;
+    if (firstGame) {
+      firstGame = false;
+      showHint(matchMedia("(hover: hover) and (pointer: fine)").matches
+        ? "Clic pour poser · glisser pour tourner · clic droit ou ZQSD pour avancer · Maj+clic pour effacer"
+        : "Touche pour poser · glisse pour tourner · deux doigts pour zoomer et avancer", 7000);
+    }
+  }
+  let startChoice = "empty";
+  $("t-continue").onclick = () => openWorld(byRecent()[0].id);
+  $("t-new").onclick = () => {
+    $("t-name").value = "Monde " + (worlds.length + 1);
+    showView("t-new-view");
+  };
+  document.querySelectorAll("[data-start]").forEach((b) => (b.onclick = () => {
+    startChoice = b.dataset.start;
+    document.querySelectorAll("[data-start]").forEach((x) => x.setAttribute("aria-checked", x === b));
+  }));
+  $("t-create").onclick = () => createWorld($("t-name").value.trim() || "Monde " + (worlds.length + 1), startChoice === "sample");
+  $("t-name").addEventListener("keydown", (e) => { if (e.key === "Enter") $("t-create").click(); });
+  $("t-worlds").onclick = () => { renderWorlds(); showView("t-worlds-view"); };
+  $("t-help").onclick = () => showView("t-help-view");
+  document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => showView("t-main")));
+  $("m-title").onclick = () => { openMenu(false); openTitle(); };
 
   // ---------- Démarrage ----------
   function resize() {
@@ -1217,18 +1654,20 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
 
   function start(data) {
     renderPalette();
-    let list = null;
-    try { if (data && Array.isArray(data.blocks)) list = parseList(data.blocks); } catch (e) {}
-    if (!list) {
-      for (const k of [STORE_KEY, OLD_STORE_KEY]) {
-        try { const s = localStorage.getItem(k); if (s) { list = parseList(JSON.parse(s)); break; } } catch (e) {}
-      }
-    }
-    addOps(list || sample()).forEach((o) => setPiece(o.id, o.after));
     setColor(color);
     setShape("cube");
     setTool("place");
-    changed();
+    setJob(0);
+    readIndex();
+    // Après une mise à jour de la page, on reprend le monde ouvert ; sinon l'accueil montre le dernier monde
+    const back = data && data.world && worlds.find((w) => w.id === data.world);
+    if (back && data.playing) openWorld(back.id);
+    else {
+      const recent = byRecent()[0];
+      showWorld(recent ? worldPieces(recent.id) : sample());
+      goHome();
+      openTitle();
+    }
     const clock = new THREE.Clock();
     renderer.setAnimationLoop(() => {
       const dt = Math.min(clock.getDelta(), 0.1);
@@ -1239,7 +1678,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
       renderer.render(scene, camera);
     });
   }
-  window.claude?.hot?.snapshot?.(() => ({ blocks: serialize() }));
+  window.claude?.hot?.snapshot?.(() => { saveNow(); return { world: currentWorld, playing: !titleOpen }; });
   window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
 })();
 </script>

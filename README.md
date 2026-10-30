@@ -115,7 +115,14 @@ Le monde est infini à l'horizontale (le sol est à la hauteur 0, plafond à 512
 
 Formes : un **demi-bloc** fait la moitié de la hauteur d'un bloc, un **micro-cube** fait la moitié d'un bloc dans chaque sens (8 micro-cubes = 1 bloc). Une **pente** monte en s'éloignant de toi ; « Tourner » lui ajoute un quart de tour. La pipette reprend la couleur et la forme.
 
-Bonshommes : des petits personnages (un bloc et demi de haut) qui se promènent tout seuls, au sol comme sur tes constructions. Ils montent et descendent les marches d'un demi-bloc, passent par une porte de 2 blocs, ne traversent rien et tombent si on retire ce qui les porte. Chacun a un physique tiré au hasard ; la couleur choisie est celle de son haut, et l'outil Peindre la change. Le menu « ⋯ » les arrête ou les fait repartir.
+Accueil : au lancement, un écran d'accueil propose de continuer le dernier monde, d'en créer un nouveau (vide ou avec l'exemple), de gérer « Mes mondes » (jouer, supprimer) ou de lire l'aide. Chaque monde est sauvegardé à part. Le menu « ⋯ » en jeu ramène au menu principal.
+
+Bonshommes : des petits personnages (un bloc et demi de haut) avec un métier choisi au moment de les poser.
+- **Promeneur** : il se balade, monte et descend les marches d'un demi-bloc, passe par une porte de 2 blocs.
+- **Bâtisseur** (il tient un bloc) : il construit une cabane de 3 × 3 blocs devant lui, avec une porte et un toit en pente, pièce par pièce, puis se promène.
+- **Peintre** (il tient un pinceau) : il repeint de la couleur de son haut les blocs qu'il touche en passant.
+
+Aucun ne traverse les blocs ; ils tombent si on retire ce qui les porte. Ce qu'ils construisent ou peignent ne passe pas par Annuler. Le menu « ⋯ » les met en pause.
 
 Images : le menu « ⋯ » transforme une image PNG ou JPG en mur de pixel art, face à toi (64 px max en micro-cubes, 32 px max en blocs ; les pixels transparents sont ignorés). « Prendre une photo » affiche une image PNG de la vue, à enregistrer par appui long ou clic droit.
 

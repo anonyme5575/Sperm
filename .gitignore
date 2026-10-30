@@ -6,3 +6,4 @@ moniteur/**/bin/
 moniteur/**/obj/
 dist/moniteur-pc.apk
 __pycache__/
+blocs/android/build/

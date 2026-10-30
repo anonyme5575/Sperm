@@ -334,9 +334,9 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       <input type="file" id="img-file" accept="image/*" hidden>
       <p class="sec">Bâtisseurs</p>
       <button id="m-turbo">Construction rapide <small id="m-turbo-st">non</small></button>
-      <button id="m-mc-file">Construction Minecraft <small>.schem, .schematic</small></button>
+      <button id="m-mc-file">Construction Minecraft <small>.schem, .schematic, .litematic</small></button>
       <button id="m-mc-url">Minecraft depuis un lien <small>URL du fichier</small></button>
-      <input type="file" id="mc-file" accept=".schem,.schematic,.nbt" hidden>
+      <input type="file" id="mc-file" accept=".schem,.schematic,.litematic,.nbt" hidden>
       <p class="sec">Partager</p>
       <div class="code-box">
         <p>Le code contient toute ta construction. Garde-le pour la retrouver ailleurs ou l'envoyer à quelqu'un.</p>
@@ -954,7 +954,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
   // Au plus une écriture toutes les 0,8 s : les bonshommes bougent sans arrêt
   function saveSoon() {
     if (saveTimer) return;
-    saveTimer = setTimeout(() => { saveTimer = 0; saveNow(); }, 800);
+    saveTimer = setTimeout(() => { saveTimer = 0; saveNow(); }, pieces.size > 20000 ? 10000 : 800); // gros monde : on sauve moins souvent
   }
   const encode = () => "BAB2:" + btoa(JSON.stringify(serialize()));
   const decode = (text) => parseList(JSON.parse(atob(text.trim().replace(/^BAB\d:/, ""))));
@@ -1928,10 +1928,11 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
       p.task = site.plan[site.k++];
     }
     const d = p.task, tx = d.o[0] + 1, tz = d.o[2] + 1;
-    const near = Math.max(Math.abs(tx - p.o[0] - 0.5), Math.abs(tz - p.o[2] - 0.5)) <= (turbo ? 12 : 4);
-    if (near || u.stuck > 8) {
+    const near = Math.max(Math.abs(tx - p.o[0] - 0.5), Math.abs(tz - p.o[2] - 0.5)) <= 4;
+    if (turbo || near || u.stuck > 8) { // en mode rapide, il pose à distance
       // En mode rapide, il pose une rafale de pièces d'un coup
-      for (let n = turbo ? 8 : 1; n > 0 && p.task; n--) {
+      // Rafale plus longue sur les gros chantiers : un modèle énorme finit en quelques minutes
+      for (let n = turbo ? Math.min(200, Math.max(8, site.plan.length >> 11)) : 1; n > 0 && p.task; n--) {
         const t = p.task;
         if (!cellsOf(t.shape, t.o).some((c) => occ.has(c))) setPiece(newId(), t);
         else if (!blockAt(t)) site.plan.push({ ...t }); // un bonhomme est dessus : on la remet en fin de file
@@ -1971,7 +1972,7 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
         case 9: { const et = v.getInt8(i++), n = v.getInt32(i); i += 4; const a = []; for (let k = 0; k < n; k++) a.push(read(et)); return a; }
         case 10: { const o = {}; for (;;) { const tt = v.getInt8(i++); if (!tt) return o; const name = str(); o[name] = read(tt); } }
         case 11: return arr(4, (j) => v.getInt32(j));
-        case 12: return arr(8, (j) => v.getInt32(j + 4));
+        case 12: { const n = v.getInt32(i); i += 4; const a = new Uint32Array(n * 2); for (let k = 0; k < n; k++, i += 8) { a[2 * k] = v.getUint32(i + 4); a[2 * k + 1] = v.getUint32(i); } return a; }
       }
       throw new Error("NBT invalide");
     };
@@ -2003,53 +2004,93 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     const color = word && !/oak|birch|spruce/.test(base) ? MC_WORDS[word] : mat ? mat[1] : "#9a9aa0";
     return { color, shape: /slab/.test(base) && !/type=double/.test(name) ? "slab" : "cube", top: /type=top/.test(name) };
   }
-  // Lit un .schem (Sponge v1-3) ou un .schematic (ancien format) et renvoie une file de pièces posée devant la caméra
-  function mcPlan(root) {
+  // Lit un .schem (Sponge v1-3), un .schematic (ancien format) ou un .litematic.
+  // Renvoie un volume : W, H, L, ids (indice de palette par case, x le plus rapide puis z puis y) et pal (pièce ou null).
+  function mcVolume(root) {
+    if (root.Regions) { // Litematica : plusieurs régions, chacune avec ses longs compactés
+      const regs = Object.values(root.Regions).map((r) => {
+        const sz = [r.Size.x, r.Size.y, r.Size.z], at = [r.Position.x, r.Position.y, r.Position.z].map((p, a) => p + (sz[a] < 0 ? sz[a] + 1 : 0));
+        return { r, sz: sz.map(Math.abs), at };
+      });
+      const lo = [0, 1, 2].map((a) => Math.min(...regs.map((g) => g.at[a]))), hi = [0, 1, 2].map((a) => Math.max(...regs.map((g) => g.at[a] + g.sz[a])));
+      const [W, H, L] = [0, 1, 2].map((a) => hi[a] - lo[a]), pal = [null], key = new Map();
+      if (W * H * L > 4e8) throw new Error("volume de " + W + "×" + H + "×" + L + " : trop grand pour la mémoire");
+      const ids = new Uint16Array(W * H * L);
+      for (const { r, sz: [sx, sy, sz], at } of regs) {
+        const map = r.BlockStatePalette.map((b) => {
+          const name = b.Name + (b.Properties ? "[" + Object.entries(b.Properties).map(([k, v]) => k + "=" + v).join(",") + "]" : "");
+          if (!key.has(name)) { key.set(name, pal.length); pal.push(mcPiece(name)); }
+          return key.get(name);
+        });
+        const bits = Math.max(2, 32 - Math.clz32(map.length - 1)), mask = bits === 32 ? -1 >>> 0 : (1 << bits) - 1, w = r.BlockStates;
+        for (let n = 0, y = 0; y < sy; y++) for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++, n++) {
+          const b = n * bits, k = b >>> 5, o = b & 31;
+          let val = w[k] >>> o;
+          if (o + bits > 32) val |= w[k + 1] << (32 - o);
+          const id = map[(val & mask) >>> 0];
+          if (id) ids[((y + at[1] - lo[1]) * L + z + at[2] - lo[2]) * W + x + at[0] - lo[0]] = id;
+        }
+      }
+      return { W, H, L, ids, pal };
+    }
     const S = root.Schematic || root, W = S.Width, H = S.Height, L = S.Length;
-    if (!W || !H || !L) throw new Error("format non reconnu (il faut un .schem ou un .schematic)");
-    let pick;
+    if (!W || !H || !L) throw new Error("format non reconnu (il faut un .schem, .schematic ou .litematic)");
+    const ids = new Uint16Array(W * H * L), pal = [];
     if (S.Blocks && S.Blocks.Palette || S.Palette) {
-      const pal = (S.Blocks && S.Blocks.Palette) || S.Palette, data = (S.Blocks && S.Blocks.Data) || S.BlockData, names = [];
-      for (const k in pal) names[pal[k]] = mcPiece(k);
-      const ids = new Int32Array(W * H * L);
+      const P = (S.Blocks && S.Blocks.Palette) || S.Palette, data = (S.Blocks && S.Blocks.Data) || S.BlockData;
+      for (const k in P) pal[P[k]] = mcPiece(k);
       for (let i = 0, n = 0; n < ids.length && i < data.length; n++) { // entiers à longueur variable
         let val = 0, sh = 0, c;
         do { c = data[i++]; val |= (c & 127) << sh; sh += 7; } while (c & 128);
         ids[n] = val;
       }
-      pick = (n) => names[ids[n]];
     } else {
-      const cache = {};
-      pick = (n) => { const id = S.Blocks[n] & 255, dv = S.Data ? S.Data[n] & 15 : 0, k = id + ":" + dv;
-        if (!(k in cache)) cache[k] = id === 35 || id === 159 || id === 95 ? mcPiece(WOOL16[dv] + "_wool") : LEGACY[id] ? mcPiece(LEGACY[id] + (id === 44 || id === 126 ? (dv & 8 ? "[type=top]" : "[type=bottom]") : "")) : id ? mcPiece("block") : null;
-        return cache[k]; };
+      const slot = new Map();
+      for (let n = 0; n < ids.length; n++) {
+        const id = S.Blocks[n] & 255, dv = S.Data ? S.Data[n] & 15 : 0, k = id * 16 + dv;
+        if (!slot.has(k)) {
+          slot.set(k, pal.length);
+          pal.push(id === 35 || id === 159 || id === 95 ? mcPiece(WOOL16[dv] + "_wool") : LEGACY[id] ? mcPiece(LEGACY[id] + (id === 44 || id === 126 ? (dv & 8 ? "[type=top]" : "[type=bottom]") : "")) : id ? mcPiece("block") : null);
+        }
+        ids[n] = slot.get(k);
+      }
     }
-    const grid = new Array(W * H * L);
-    for (let n = 0; n < grid.length; n++) grid[n] = pick(n);
-    const at = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < W && y < H && z < L ? grid[(y * L + z) * W + x] : null;
-    const cx = Math.round(controls.target.x / 2 - W / 2), cz = Math.round(controls.target.z / 2 - L / 2), out = [];
-    for (let y = 0; y < H; y++) for (let z = 0; z < L; z++) for (let x = 0; x < W; x++) {
-      const q = at(x, y, z);
+    return { W, H, L, ids, pal };
+  }
+  // Volume -> file de pièces visibles posée devant la caméra
+  function mcPlan({ W, H, L, ids, pal }) {
+    const solid = new Uint8Array(pal.length);
+    pal.forEach((q, k) => (solid[k] = q && q.shape === "cube" ? 1 : 0));
+    const cx = Math.round(controls.target.x / 2 - W / 2), cz = Math.round(controls.target.z / 2 - L / 2), out = [], WL = W * L;
+    for (let y = 0, n = 0; y < H; y++) for (let z = 0; z < L; z++) for (let x = 0; x < W; x++, n++) {
+      const q = pal[ids[n]];
       if (!q) continue;
       // Bloc entièrement caché par ses voisins : inutile de le poser
-      if ([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].every(([a, b, c]) => { const r = at(x + a, y + b, z + c); return r && r.shape === "cube"; })) continue;
+      if (x > 0 && x < W - 1 && z > 0 && z < L - 1 && y < H - 1 && (y === 0 || solid[ids[n - WL]]) &&
+        solid[ids[n - 1]] && solid[ids[n + 1]] && solid[ids[n - W]] && solid[ids[n + W]] && solid[ids[n + WL]]) continue;
       out.push({ shape: q.shape, o: [(cx + x) * 2, y * 2 + (q.top ? 1 : 0), (cz + z) * 2], rot: 0, color: q.color });
     }
-    if (out.length > 40000) throw new Error(out.length + " blocs visibles : trop gros (40 000 au plus)");
     return out;
   }
   async function mcLoad(buf, label) {
     try {
-      const plan = mcPlan(await readNbt(buf)).filter((d) => inWorld(d.shape, d.o));
+      showHint("Lecture du fichier…", 60000);
+      await new Promise((r) => setTimeout(r, 30));
+      const plan = mcPlan(mcVolume(await readNbt(buf))).filter((d) => inWorld(d.shape, d.o));
+      hideHint();
       if (!plan.length) throw new Error("aucun bloc reconnu");
+      if (plan.length > 150000 && !confirm(plan.length + " blocs : c'est énorme, un téléphone peut ralentir beaucoup. On construit quand même ?")) return;
       site = { plan, k: 0 };
-      // Il faut des bâtisseurs : on en fait venir jusqu'à 6
+      // Il faut des bâtisseurs : 6, et plus pour les grands chantiers (jusqu'à 30)
+      const want = Math.min(30, 6 + Math.floor(plan.length / 4000));
       let crew = [...pieces.values()].filter((q) => q.shape === "npc" && q.j === 1).length;
       const [ox, , oz] = plan[0].o;
-      for (let n = 0; crew < 6 && n < 60; n++) {
-        const o = [ox - 4 + Math.floor(Math.random() * 8), 0, oz - 6 - Math.floor(Math.random() * 4)];
+      for (let n = 0; crew < want && n < want * 10; n++) {
+        const o = [ox - 6 + Math.floor(Math.random() * 12), 0, oz - 6 - Math.floor(Math.random() * 6)];
         if (freeFor(null, ...o) && supported(null, ...o)) { setPiece(newId(), { shape: "npc", o, rot: 0, color: COLORS[crew % COLORS.length][1], v: Math.floor(Math.random() * 4096), j: 1, w: null }); crew++; }
       }
+      // Ils abandonnent leurs propres plans : après le chantier, ils ne repartent pas construire ailleurs
+      pieces.forEach((q) => { if (q.shape === "npc" && q.j === 1) q.w = [0, 0, 0, 0, 1e9, 0, 5]; });
       setSim(true);
       npcEdited();
       news(label + " : " + plan.length + " blocs à poser par " + crew + " bâtisseurs.");
@@ -2432,9 +2473,28 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
   const mem = new Map(); // repli si le navigateur refuse le stockage
   const store = {
     get(k) { try { const v = localStorage.getItem(k); if (v !== null) return v; } catch (e) {} return mem.has(k) ? mem.get(k) : null; },
-    set(k, v) { mem.set(k, v); try { localStorage.setItem(k, v); } catch (e) {} },
-    del(k) { mem.delete(k); try { localStorage.removeItem(k); } catch (e) {} },
+    set(k, v) {
+      mem.set(k, v);
+      // Trop gros pour localStorage (quelques Mo) : on range dans IndexedDB et on laisse un renvoi
+      try { localStorage.setItem(k, v); } catch (e) { idb("put", k, v); try { localStorage.setItem(k, "@idb"); } catch (e2) {} }
+    },
+    del(k) { mem.delete(k); idb("delete", k); try { localStorage.removeItem(k); } catch (e) {} },
   };
+  let idbP = null;
+  function idb(op, k, v) {
+    idbP = idbP || new Promise((ok, ko) => { const r = indexedDB.open("blocs", 1); r.onupgradeneeded = () => r.result.createObjectStore("kv"); r.onsuccess = () => ok(r.result); r.onerror = ko; });
+    return idbP.then((db) => new Promise((ok) => {
+      const st = db.transaction("kv", op === "get" ? "readonly" : "readwrite").objectStore("kv");
+      const r = op === "put" ? st.put(v, k) : op === "get" ? st.get(k) : st.delete(k);
+      r.onsuccess = () => ok(r.result); r.onerror = () => ok(null);
+    })).catch(() => null);
+  }
+  // Charge un monde (éventuellement depuis IndexedDB) puis appelle then(pièces)
+  function loadWorld(id, then) {
+    const raw = store.get(worldKey(id));
+    if (raw !== "@idb") return then(worldPieces(id));
+    idb("get", worldKey(id)).then((v) => { try { then(parseList(JSON.parse(v || "[]"))); } catch (e) { then([]); } });
+  }
   let worlds = [], currentWorld = null, titleOpen = false;
   function readIndex() {
     try { worlds = JSON.parse(store.get(INDEX_KEY)) || []; } catch (e) { worlds = []; }
@@ -2476,10 +2536,10 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     if (!w) return;
     stopArena();
     currentWorld = id;
-    showWorld(worldPieces(id));
+    showWorld([]);
     $("world-name").textContent = w.name;
     closeTitle();
-    goHome();
+    loadWorld(id, (list) => { if (currentWorld === id) { showWorld(list); goHome(); } });
   }
   function createWorld(name, start) {
     const id = "w" + Date.now().toString(36) + Math.floor(Math.random() * 1e4);
@@ -2643,8 +2703,8 @@ body.title-open .top, body.title-open .dock { visibility: hidden; }
     if (back && data.playing) openWorld(back.id);
     else {
       const recent = byRecent()[0];
-      showWorld(recent ? worldPieces(recent.id) : sample());
-      goHome();
+      if (recent) loadWorld(recent.id, (list) => { showWorld(list); goHome(); });
+      else { showWorld(sample()); goHome(); }
       openTitle();
     }
     const clock = new THREE.Clock();

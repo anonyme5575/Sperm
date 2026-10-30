@@ -168,7 +168,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
 <header class="top">
   <div class="brand panel">
     <strong>Boîte à Blocs</strong>
-    <span id="count">0 bloc</span>
+    <span><span id="count">0 bloc</span> · <span id="pos" title="Position (est, sud)">0, 0</span></span>
   </div>
   <div class="actions panel">
     <button class="icon-btn" id="undo" title="Annuler (Ctrl+Z)" aria-label="Annuler">
@@ -181,7 +181,8 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
       <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
     </button>
     <div class="menu panel" id="menu" hidden>
-      <button id="m-view">Recentrer la vue</button>
+      <button id="m-view">Revenir au centre</button>
+      <button id="m-home">Aller à ma construction</button>
       <button id="m-sample">Charger l'exemple <small>remplace tout</small></button>
       <button id="m-clear">Tout effacer</button>
       <hr>
@@ -198,7 +199,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
 </header>
 
 <div class="dock">
-  <div class="hint panel" id="hint">Touche pour poser · glisse pour tourner · pince pour zoomer</div>
+  <div class="hint panel" id="hint">Touche pour poser · glisse pour tourner · deux doigts pour zoomer et avancer</div>
   <div class="dock-card panel">
     <div class="tools" role="toolbar" aria-label="Outils">
       <button class="tool" data-tool="place" aria-pressed="true" title="Poser (1)">
@@ -231,7 +232,8 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
 <script src="https://cdn.jsdelivr.net/npm/three@0.140.0/examples/js/controls/OrbitControls.js"></script>
 <script>
 (() => {
-  const N = 24, HALF = N / 2, MAX_H = 24;
+  // Monde sans bord : seul le sol (y = 0) limite vers le bas, la hauteur est plafonnée très haut
+  const MAX_H = 512, LIMIT = 1e6, GRID = 400;
   const STORE_KEY = "boite-a-blocs-v1";
   const COLORS = [
     ["Craie", "#f2f0eb"], ["Galet", "#c9c6bd"], ["Ardoise", "#6d6a73"], ["Charbon", "#2b2a33"],
@@ -252,23 +254,26 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 400);
+  scene.fog = new THREE.Fog(0xffffff, 40, 120);
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 600);
   const controls = new THREE.OrbitControls(camera, canvas);
   controls.enableDamping = true;
   controls.dampingFactor = 0.12;
   controls.minDistance = 4;
-  controls.maxDistance = 70;
+  controls.maxDistance = 120;
+  controls.screenSpacePanning = false; // glisser à deux doigts / clic droit = avancer sur le sol
   controls.maxPolarAngle = Math.PI / 2 - 0.04;
   controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
   controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
 
-  function resetView() {
+  function lookAt(cx, cy, cz) {
     // Recule en portrait pour que la construction tienne en largeur
     const far = Math.max(1, 1.25 / Math.max(camera.aspect, 0.3));
-    camera.position.set(17 * far, 15 * far, 21 * far);
-    controls.target.set(0, 2, 0);
+    camera.position.set(cx + 17 * far, cy + 13 * far, cz + 21 * far);
+    controls.target.set(cx, cy, cz);
     controls.update();
   }
+  const resetView = () => lookAt(0, 2, 0);
   resetView();
 
   scene.add(new THREE.HemisphereLight(0xffffff, 0x9aa6b8, 0.62));
@@ -277,35 +282,59 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   sun.position.set(14, 26, 10);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20, near: 1, far: 80 });
+  Object.assign(sun.shadow.camera, { left: -28, right: 28, top: 28, bottom: -28, near: 1, far: 120 });
   sun.shadow.bias = -0.0006;
   sun.shadow.normalBias = 0.02;
-  scene.add(sun);
+  const SUN_OFFSET = new THREE.Vector3(14, 40, 10);
+  scene.add(sun, sun.target);
 
-  const groundMat = new THREE.MeshStandardMaterial({ roughness: 1 });
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(N, N), groundMat);
+  // Sol, grille et ombres suivent la caméra : le monde n'a pas de bord, le brouillard cache l'horizon
+  // La grille est peinte dans la texture du sol (une case = un bloc) plutôt qu'en lignes 3D
+  const gridCanvas = document.createElement("canvas");
+  gridCanvas.width = gridCanvas.height = 64;
+  const gridTex = new THREE.CanvasTexture(gridCanvas);
+  gridTex.wrapS = gridTex.wrapT = THREE.RepeatWrapping;
+  gridTex.repeat.set(GRID, GRID);
+  gridTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  // Teinte < 1 : sinon l'éclairage sature le sol en blanc et la grille disparaît
+  const groundMat = new THREE.MeshStandardMaterial({ roughness: 1, map: gridTex, color: 0xb8b8b8 });
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(GRID, GRID), groundMat);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
-  let grid = null;
 
   const mirrorPlane = new THREE.Mesh(
-    new THREE.PlaneGeometry(N, MAX_H),
+    new THREE.PlaneGeometry(GRID, 200),
     new THREE.MeshBasicMaterial({ color: 0x3e63dd, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false })
   );
   mirrorPlane.rotation.y = Math.PI / 2;
-  mirrorPlane.position.set(0, MAX_H / 2, 0);
+  mirrorPlane.position.set(0, 100, 0);
   mirrorPlane.visible = false;
   scene.add(mirrorPlane);
 
   function applyTheme() {
     scene.background = new THREE.Color(css("--scene"));
-    groundMat.color.set(css("--ground"));
-    if (grid) { scene.remove(grid); grid.geometry.dispose(); grid.material.dispose(); }
-    grid = new THREE.GridHelper(N, N, css("--grid"), css("--grid"));
-    grid.position.y = 0.002;
-    scene.add(grid);
+    scene.fog.color.set(css("--scene"));
+    const g = gridCanvas.getContext("2d");
+    g.fillStyle = css("--ground"); g.fillRect(0, 0, 64, 64);
+    g.fillStyle = css("--grid"); g.fillRect(0, 0, 64, 3); g.fillRect(0, 0, 3, 64);
+    gridTex.needsUpdate = true;
     mirrorPlane.material.color.set(css("--accent"));
+  }
+
+  function follow() {
+    const t = controls.target;
+    if (t.y < 0) t.y = 0;
+    const gx = Math.round(t.x), gz = Math.round(t.z);
+    ground.position.set(gx, 0, gz);
+    mirrorPlane.position.z = gz;
+    sun.target.position.set(gx, 0, gz);
+    sun.position.copy(sun.target.position).add(SUN_OFFSET);
+    const d = camera.position.distanceTo(t);
+    scene.fog.far = Math.min(d * 2.6, GRID / 2 - 10);
+    scene.fog.near = Math.min(d * 1.1, scene.fog.far * 0.6);
+    const pos = gx + ", " + gz;
+    if ($("pos").textContent !== pos) $("pos").textContent = pos;
   }
   applyTheme();
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
@@ -333,22 +362,58 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
 
   const blockGroup = new THREE.Group();
   scene.add(blockGroup);
-  const blocks = new Map(); // "x,y,z" -> { color, mesh }
+  const blocks = new Map(); // "x,y,z" -> { color, idx }
   const key = (x, y, z) => x + "," + y + "," + z;
   const unkey = (k) => k.split(",").map(Number);
-  const inBounds = (x, y, z) => x >= -HALF && x < HALF && z >= -HALF && z < HALF && y >= 0 && y < MAX_H;
+  const inBounds = (x, y, z) =>
+    Number.isInteger(x) && Number.isInteger(y) && Number.isInteger(z) &&
+    y >= 0 && y < MAX_H && Math.abs(x) < LIMIT && Math.abs(z) < LIMIT;
 
+  // Un seul objet instancié par couleur : des dizaines de milliers de blocs restent fluides
+  const buckets = new Map(); // couleur -> { mesh, keys, cap }
+  const tmpM = new THREE.Matrix4();
+  function grow(b, hex, cap) {
+    const m = new THREE.InstancedMesh(boxGeo, matFor(hex), cap);
+    m.castShadow = m.receiveShadow = true;
+    m.frustumCulled = false;
+    m.userData.bucket = b;
+    if (b.mesh) {
+      for (let i = 0; i < b.keys.length; i++) { b.mesh.getMatrixAt(i, tmpM); m.setMatrixAt(i, tmpM); }
+      blockGroup.remove(b.mesh);
+      b.mesh.dispose();
+    }
+    m.count = b.keys.length;
+    b.mesh = m;
+    b.cap = cap;
+    blockGroup.add(m);
+  }
   function setBlock(k, color) {
     const old = blocks.get(k);
-    if (old) { blockGroup.remove(old.mesh); blocks.delete(k); }
+    if (old) {
+      const b = buckets.get(old.color), last = b.keys.length - 1;
+      if (old.idx !== last) {
+        const lk = b.keys[last];
+        b.mesh.getMatrixAt(last, tmpM);
+        b.mesh.setMatrixAt(old.idx, tmpM);
+        b.keys[old.idx] = lk;
+        blocks.get(lk).idx = old.idx;
+      }
+      b.keys.pop();
+      b.mesh.count = b.keys.length;
+      b.mesh.instanceMatrix.needsUpdate = true;
+      blocks.delete(k);
+    }
     if (!color) return;
+    let b = buckets.get(color);
+    if (!b) { b = { mesh: null, keys: [], cap: 0 }; buckets.set(color, b); grow(b, color, 64); }
+    if (b.keys.length >= b.cap) grow(b, color, b.cap * 2);
     const [x, y, z] = unkey(k);
-    const mesh = new THREE.Mesh(boxGeo, matFor(color));
-    mesh.position.set(x + 0.5, y + 0.5, z + 0.5);
-    mesh.castShadow = mesh.receiveShadow = true;
-    mesh.userData.k = k;
-    blockGroup.add(mesh);
-    blocks.set(k, { color, mesh });
+    const i = b.keys.length;
+    b.mesh.setMatrixAt(i, tmpM.makeTranslation(x + 0.5, y + 0.5, z + 0.5));
+    b.keys.push(k);
+    b.mesh.count = b.keys.length;
+    b.mesh.instanceMatrix.needsUpdate = true;
+    blocks.set(k, { color, idx: i });
   }
 
   // ---------- Historique ----------
@@ -501,6 +566,13 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
   menuBtn.onclick = (e) => { e.stopPropagation(); openMenu(menu.hidden); };
   document.addEventListener("pointerdown", (e) => { if (!menu.hidden && !e.target.closest(".actions")) openMenu(false); });
   $("m-view").onclick = () => { resetView(); openMenu(false); };
+  $("m-home").onclick = () => {
+    openMenu(false);
+    if (!blocks.size) return resetView();
+    let sx = 0, sz = 0;
+    blocks.forEach((_, k) => { const [x, , z] = unkey(k); sx += x; sz += z; });
+    lookAt(Math.round(sx / blocks.size), 2, Math.round(sz / blocks.size));
+  };
   $("m-sample").onclick = () => {
     const before = new Map([...blocks].map(([k, b]) => [k, b.color]));
     const after = new Map(sample().map(([x, y, z, c]) => [key(x, y, z), "#" + c]));
@@ -558,7 +630,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
       const x = Math.floor(hit.point.x), z = Math.floor(hit.point.z);
       return inBounds(x, 0, z) ? { place: [x, 0, z], block: null } : null;
     }
-    const [x, y, z] = unkey(hit.object.userData.k);
+    const [x, y, z] = unkey(hit.object.userData.bucket.keys[hit.instanceId]);
     const n = hit.face.normal;
     return { place: [x + Math.round(n.x), y + Math.round(n.y), z + Math.round(n.z)], block: [x, y, z] };
   }
@@ -650,6 +722,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
 
   window.addEventListener("keydown", (e) => {
     if (e.target.closest && e.target.closest("textarea, input")) return;
+    if (MOVE_KEYS[e.code] && !e.ctrlKey && !e.metaKey) { held.add(e.code); e.preventDefault(); return; }
     const k = e.key.toLowerCase();
     if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
     if ((e.ctrlKey || e.metaKey) && k === "y") { e.preventDefault(); redo(); return; }
@@ -660,10 +733,35 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     else if (k === "escape") openMenu(false);
   });
 
-  let hintTimer = setTimeout(hideHint, 6000);
+  // Avancer au clavier : ZQSD sur AZERTY, WASD sur QWERTY (même position physique), ou les flèches
+  const MOVE_KEYS = {
+    KeyW: [0, 1], ArrowUp: [0, 1], KeyS: [0, -1], ArrowDown: [0, -1],
+    KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0],
+  };
+  const held = new Set();
+  window.addEventListener("keyup", (e) => held.delete(e.code));
+  window.addEventListener("blur", () => held.clear());
+  const fwd = new THREE.Vector3(), side = new THREE.Vector3(), step = new THREE.Vector3();
+  function walk(dt) {
+    if (!held.size) return;
+    let f = 0, s = 0;
+    held.forEach((c) => { f += MOVE_KEYS[c][1]; s += MOVE_KEYS[c][0]; });
+    camera.getWorldDirection(fwd);
+    fwd.y = 0; fwd.normalize();
+    side.crossVectors(fwd, camera.up).normalize();
+    const speed = Math.max(8, camera.position.distanceTo(controls.target) * 0.8);
+    step.copy(fwd).multiplyScalar(f).addScaledVector(side, s);
+    if (!step.lengthSq()) return;
+    step.normalize().multiplyScalar(speed * dt);
+    camera.position.add(step);
+    controls.target.add(step);
+    if (hoverXY) updateHover();
+  }
+
+  let hintTimer = setTimeout(hideHint, 7000);
   function hideHint() { clearTimeout(hintTimer); $("hint").classList.add("gone"); }
   if (matchMedia("(hover: hover) and (pointer: fine)").matches) {
-    $("hint").textContent = "Clic pour poser · glisser pour tourner · Maj+clic pour effacer · clic droit pour déplacer";
+    $("hint").textContent = "Clic pour poser · glisser pour tourner · clic droit ou ZQSD pour avancer · Maj+clic pour effacer";
   }
 
   // ---------- Démarrage ----------
@@ -687,7 +785,13 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--accent); out
     setColor(color);
     setTool("place");
     changed();
-    renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+    const clock = new THREE.Clock();
+    renderer.setAnimationLoop(() => {
+      walk(Math.min(clock.getDelta(), 0.1));
+      controls.update();
+      follow();
+      renderer.render(scene, camera);
+    });
   }
   window.claude?.hot?.snapshot?.(() => ({ blocks: serialize() }));
   window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});

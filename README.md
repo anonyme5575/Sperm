@@ -97,15 +97,18 @@ Il faut un JDK 17 ou plus, `curl`, `unzip` et `zip`. Le script télécharge le r
 
 # Boîte à Blocs
 
-Construction 3D avec des blocs de couleur unie, dans le navigateur. Ouvre `blocs/index.html` (PC ou téléphone, connexion internet nécessaire pour charger three.js).
+Construction 3D avec des blocs de couleur unie, dans un monde sans bord, dans le navigateur. Ouvre `blocs/index.html` (PC ou téléphone, connexion internet nécessaire pour charger three.js).
 
 | Action | PC | Téléphone |
 |---|---|---|
 | Poser / effacer / peindre / pipette | clic (ou touches 1 à 4) | toucher |
 | Effacer vite | Maj + clic | — |
 | Tourner la vue | glisser | glisser à un doigt |
-| Zoomer / déplacer | molette / clic droit | pincer / glisser à deux doigts |
+| Zoomer | molette | pincer |
+| Avancer dans le monde | clic droit glissé, ZQSD / WASD ou flèches | glisser à deux doigts |
 | Symétrie (miroir gauche-droite) | touche M | bouton Symétrie |
 | Annuler / rétablir | Ctrl+Z / Ctrl+Y | boutons en haut |
+
+Le monde est infini à l'horizontale (le sol est à la hauteur 0, plafond à 512 blocs). La position affichée en haut à gauche indique où tu es ; le menu « ⋯ » permet de revenir au centre ou d'aller à ta construction.
 
 La construction est sauvegardée automatiquement dans le navigateur. Le menu « ⋯ » donne un code texte pour la copier ailleurs ou la partager.

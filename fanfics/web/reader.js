@@ -92,6 +92,7 @@
       `<div class="rend">${last ? (fic.complete ? "Fin." : "Dernier chapitre publié pour l'instant.") :
         `<button class="primary" data-r="next">Chapitre suivant ▶</button>`}</div>`;
     if (scrollTo != null) body.scrollTop = scrollTo * Math.max(0, body.scrollHeight - body.clientHeight);
+    progress();
   }
 
   function translationBanner() {
@@ -131,6 +132,7 @@
     original = translated = null;
     showOriginal = false;
     fic.readCh = n;
+    fic.readAt = Date.now();
     if (fic.status === "toread") fic.status = "reading";
     A.save();
     header();
@@ -179,6 +181,7 @@
     const total = fic.chaptersTotal || fic.chapters || 0;
     const start = fic.readCh || (fic.lastRead ? Math.min(fic.lastRead + 1, total || fic.lastRead + 1) : 1);
     applyFont();
+    $("reader").classList.remove("immersive");
     $("reader").hidden = false;
     load(start, !!fic.readCh && fic.readCh === start);
   }
@@ -193,8 +196,17 @@
     return true;
   }
 
+  const THEMES = [["night", "🌙", "Nuit"], ["sepia", "☕", "Sépia"], ["paper", "☀️", "Papier"]];
   function applyFont() {
     $("rBody").style.fontSize = A.settings.fontSize + "px";
+    const t = THEMES.find((x) => x[0] === A.settings.readerTheme) || THEMES[0];
+    $("reader").dataset.theme = t[0];
+    $("rTheme").textContent = t[1];
+    $("rTheme").title = "Ambiance : " + t[2];
+  }
+
+  function progress() {
+    $("rProg").style.width = (original ? Math.round(ratio() * 100) : 0) + "%";
   }
 
   let scrollTimer = 0;
@@ -214,7 +226,18 @@
   $("rList").addEventListener("change", (e) => { saveScroll(); load(+e.target.value); });
   $("rSmaller").addEventListener("click", () => { A.settings.fontSize = Math.max(13, A.settings.fontSize - 1); applyFont(); A.save(); });
   $("rBigger").addEventListener("click", () => { A.settings.fontSize = Math.min(30, A.settings.fontSize + 1); applyFont(); A.save(); });
-  $("rBody").addEventListener("scroll", () => { clearTimeout(scrollTimer); scrollTimer = setTimeout(saveScroll, 400); });
+  $("rBody").addEventListener("scroll", () => { progress(); clearTimeout(scrollTimer); scrollTimer = setTimeout(saveScroll, 400); }, { passive: true });
+  $("rTheme").addEventListener("click", () => {
+    const i = THEMES.findIndex((x) => x[0] === A.settings.readerTheme);
+    A.settings.readerTheme = THEMES[(i + 1) % THEMES.length][0];
+    applyFont();
+    A.save();
+  });
+  // Toucher le texte (hors bouton) : masque ou montre les barres, pour lire en plein écran.
+  $("rBody").addEventListener("click", (e) => {
+    if (e.target.closest("button, a, select") || window.getSelection().toString()) return;
+    $("reader").classList.toggle("immersive");
+  });
 
   function next() {
     if (!list || n >= list.length) return;

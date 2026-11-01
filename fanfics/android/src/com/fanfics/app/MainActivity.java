@@ -68,11 +68,11 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        getWindow().setStatusBarColor(0xFF16141A);
-        getWindow().setNavigationBarColor(0xFF16141A);
+        getWindow().setStatusBarColor(0xFF0A0910);
+        getWindow().setNavigationBarColor(0xFF0A0910);
 
         web = new WebView(this);
-        web.setBackgroundColor(0xFF16141A);
+        web.setBackgroundColor(0xFF0A0910);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -367,7 +367,7 @@ public class MainActivity extends Activity {
 
         browserBox = new LinearLayout(this);
         browserBox.setOrientation(LinearLayout.VERTICAL);
-        browserBox.setBackgroundColor(0xFF16141A);
+        browserBox.setBackgroundColor(0xFF0A0910);
         LinearLayout bar = new LinearLayout(this);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setPadding(24, 16, 16, 16);

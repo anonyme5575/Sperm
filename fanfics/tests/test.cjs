@@ -270,12 +270,30 @@ async function test(name, fn) {
     const f = await ev(([b, p]) => Parsers.Profiles.parseFavorites(p, "authors", b), [page("wattpad-following.json"), pr]);
     assert.deepStrictEqual(f.authors.map((a) => a.name), ["plume_bleue", "neo"]);
   });
+  await test("comptes par pseudo : AO3, FanFiction.net (pseudo exact), Wattpad", async () => {
+    const L = (site, name, f) => ev(([s, n, b]) => Parsers.Profiles.parseLookup(s, n, b), [site, name, page(f)]);
+    const a = await L("ao3", "moi", "ao3-profile.html");
+    assert.strictEqual(a.url, "https://archiveofourown.org/users/Moi");
+    assert.strictEqual(a.name, "Moi");
+    assert.strictEqual(a.joined, "2019-03-14");
+    assert.strictEqual(a.bio, "Je lis tout ce qui est slow burn.");
+    assert.strictEqual(await L("ao3", "Personne", "ao3-people.html"), null);
+    const f = await L("ffn", "Moi", "ffn-writers.html");
+    assert.strictEqual(f.url, "https://www.fanfiction.net/u/999/Moi");
+    assert.strictEqual(await L("ffn", "Mo", "ffn-writers.html"), null);
+    const w = await L("wattpad", "luna_ecrit", "wattpad-user.json");
+    assert.strictEqual(w.url, "https://www.wattpad.com/user/luna_ecrit");
+    assert.deepStrictEqual(w.stats[0], [4, "histoires"]);
+    assert.strictEqual(await ev(() => Parsers.Profiles.lookupUrl("ffn", "Moi")), "https://www.fanfiction.net/search/?keywords=Moi&ready=1&type=writer");
+  });
   await p.close();
 
   // ---------------------------------------------------------------- l'app entière
   // Faux pont Android : sert les pages d'exemple, garde les données en mémoire.
   const ao3v2 = page("ao3.html").replace(">12</a>/?", ">14</a>/?");
   const routes = {
+    "https://archiveofourown.org/users/Moi/profile": { ok: true, status: 200, body: page("ao3-profile.html") },
+    "https://www.fanfiction.net/search/?keywords=Moi&ready=1&type=writer": { ok: true, status: 200, body: page("ffn-writers.html") },
     "https://www.fanfiction.net/u/999/Moi": { ok: true, status: 200, body: page("ffn-profile.html") },
     "https://www.fanfiction.net/u/222/Luna-Writes": { ok: true, status: 200, body: page("ffn-author.html") },
     "https://archiveofourown.org/users/Moi/bookmarks": { ok: true, status: 200, body: page("ao3-bookmarks-1.html") },
@@ -590,7 +608,7 @@ async function test(name, fn) {
     assert.match(await app.textContent("#list .author:has-text('Wanderer')"), /1 fic dans ta liste/);
     await app.click("#list .author:has-text('Luna Writes') [data-au=works]");
     await app.waitForSelector("#searchView:not([hidden]) .sres");
-    assert.strictEqual(await app.textContent("#sTitle"), "Luna Writes · FanFiction.net");
+    assert.strictEqual(await app.textContent("#sTitle"), "Luna Writes");
     assert.deepStrictEqual(await app.$$eval(".sres .t", (e) => e.map((x) => x.textContent)), ["Moonlight", "Sunrise"]);
     assert.match(await app.textContent(".sres[data-i='0']"), /Dans ta liste/);
     await app.click(".sres[data-i='1'] [data-s=add]");
@@ -641,6 +659,57 @@ async function test(name, fn) {
     assert.strictEqual(b.accounts.length, 2);
   });
 
+  await test("app : chercher un compte par son pseudo sur les trois sites", async () => {
+    await app.click("#btnAccounts");
+    assert.match(await app.textContent("#sResults"), /Tape le pseudo d'un compte/);
+    await app.fill("#sQuery", "Moi");
+    await app.press("#sQuery", "Enter");
+    await app.waitForFunction(() => document.querySelectorAll(".person").length === 2 && !document.querySelector(".spinner"));
+    // Wattpad n'a pas ce compte (404) : pas d'erreur affichée, juste absent.
+    assert.deepStrictEqual(await app.$$eval(".person .b:first-child", (e) => e.map((x) => x.textContent)), ["AO3", "FanFiction.net"]);
+    assert.match(await app.textContent(".person[data-i='0']"), /Membre depuis 2019-03-14/);
+  });
+
+  await test("app : profil d'un compte — histoires, favoris, auteurs suivis", async () => {
+    await app.click(".person[data-i='1'] [data-s=profile]");
+    await app.waitForSelector("#sResults .hero");
+    assert.strictEqual(await app.textContent("#sTitle"), "Moi");
+    assert.deepStrictEqual(await app.$$eval("#sSections button", (e) => e.map((x) => x.textContent)), ["Ses histoires", "Ses favoris", "Auteurs favoris"]);
+    await app.waitForSelector(".sres .t");
+    assert.deepStrictEqual(await app.$$eval(".sres .t", (e) => e.map((x) => x.textContent)), ["Mon Histoire"]);
+    await app.waitForTimeout(300);
+    assert.doesNotMatch(await app.textContent(".sres .ssum"), /\[FR\]/); // « French » : déjà en français, pas traduit
+    await app.click("#sSections [data-sec='1']");
+    await app.waitForFunction(() => document.querySelectorAll(".sres .t").length === 2);
+    assert.deepStrictEqual(await app.$$eval(".sres .t", (e) => e.map((x) => x.textContent)), ["The Long Road Home", "Moonlight"]);
+    await app.click("#sSections [data-sec='2']");
+    await app.waitForFunction(() => document.querySelectorAll(".person").length === 2);
+    assert.match(await app.textContent(".person[data-i='0']"), /✓ Auteur favori/); // Luna Writes déjà favori
+  });
+
+  await test("app : d'un profil à l'autre, et Retour revient en arrière", async () => {
+    await app.click(".person[data-i='0'] [data-s=profile]");
+    await app.waitForFunction(() => document.getElementById("sTitle").textContent === "Luna Writes");
+    await app.waitForFunction(() => document.querySelectorAll(".sres .t").length === 2);
+    assert.strictEqual(await app.evaluate(() => window.__back()), true);
+    assert.strictEqual(await app.textContent("#sTitle"), "Moi");
+    assert.strictEqual(await app.evaluate(() => window.__back()), true);
+    assert.strictEqual(await app.isVisible("#sQuery"), true);
+    assert.strictEqual(await app.inputValue("#sQuery"), "Moi");
+    assert.strictEqual(await app.evaluate(() => window.__back()), true);
+    assert.strictEqual(await app.isHidden("#searchView"), true);
+  });
+
+  await test("app : « Continuer la lecture » reprend la lecture", async () => {
+    await app.click("#tabs [data-tab=all]");
+    await app.waitForSelector("#continue:not([hidden]) .cont");
+    const first = await app.textContent("#contList .cont b");
+    await app.click("#contList .cont");
+    await app.waitForSelector("#reader:not([hidden])");
+    assert.strictEqual(await app.textContent("#rFic"), first);
+    await app.evaluate(() => window.__back());
+  });
+
   await app.click("#tabs [data-tab=all]");
   await app.waitForTimeout(3500); // laisse partir le message
   await app.screenshot({ path: path.join(__dirname, "capture.png") });
@@ -650,6 +719,7 @@ async function test(name, fn) {
   await app.click("#list .card:has-text('Stars Fall')");
   await app.click("#detail [data-act=read]");
   await app.waitForFunction(() => /\[FR\] Draco smiled/.test(document.getElementById("rBody").textContent));
+  await app.waitForTimeout(500);
   await app.screenshot({ path: path.join(__dirname, "capture-lecteur.png") });
   await app.evaluate(() => window.__back());
   await app.click("#btnSearch");
@@ -657,6 +727,18 @@ async function test(name, fn) {
   await app.evaluate(() => window.__back());
   await app.click("#tabs [data-tab=authors]");
   await app.screenshot({ path: path.join(__dirname, "capture-auteurs.png") });
+  await app.click("#tabs [data-tab=all]");
+  await app.evaluate(() => window.scrollTo(0, 0));
+  await app.waitForTimeout(800);
+  await app.screenshot({ path: path.join(__dirname, "capture-accueil.png") });
+  await app.click("#btnAccounts");
+  await app.fill("#sQuery", "Moi");
+  await app.press("#sQuery", "Enter");
+  await app.waitForFunction(() => document.querySelectorAll(".person").length === 2 && !document.querySelector(".spinner"));
+  await app.click(".person[data-i='1'] [data-s=profile]");
+  await app.waitForSelector(".sres .t");
+  await app.waitForTimeout(600);
+  await app.screenshot({ path: path.join(__dirname, "capture-profil.png") });
   await test("app : aucune erreur JavaScript", async () => assert.deepStrictEqual(errors, []));
 
   await browser.close();

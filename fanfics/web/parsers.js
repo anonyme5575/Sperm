@@ -518,6 +518,53 @@
       return out;
     },
 
+    // Trouver un compte à partir d'un simple pseudo : adresse à télécharger pour ce site.
+    lookupUrl(site, name) {
+      const e = encodeURIComponent(name.trim());
+      if (site === "ao3") return "https://archiveofourown.org/users/" + e + "/profile";
+      if (site === "wattpad") return "https://www.wattpad.com/api/v3/users/" + e + "?fields=username,name,description,numStoriesPublished,numFollowers,numFollowing,numLists,createDate";
+      if (site === "ffn") return "https://www.fanfiction.net/search/?keywords=" + e.replace(/%20/g, "+") + "&ready=1&type=writer";
+      return null;
+    },
+
+    // -> profil {site, id, name, url, bio, joined, stats} ou null si aucun compte de ce nom.
+    parseLookup(site, name, body) {
+      const want = name.trim().toLowerCase();
+      if (site === "wattpad") {
+        const d = JSON.parse(body);
+        if (!d || !d.username) return null;
+        const p = profileOf("https://www.wattpad.com/user/" + encodeURIComponent(d.username));
+        return Object.assign(p, {
+          name: d.username, bio: String(d.description || "").trim(), joined: (d.createDate || "").slice(0, 10),
+          stats: [[d.numStoriesPublished, "histoires"], [d.numLists, "listes"], [d.numFollowers, "abonnés"]].filter((x) => x[0] != null),
+        });
+      }
+      const doc = html(body);
+      if (site === "ao3") {
+        const h = doc.querySelector("#main h2.heading, #main .primary h2, h2.heading");
+        // Pseudo inconnu : AO3 renvoie vers sa recherche de membres, dont le titre n'est pas le pseudo.
+        if (!h || clean(h.textContent).toLowerCase() !== want) return null;
+        const link = h.querySelector("a[href^='/users/']");
+        const id = link ? (link.getAttribute("href").match(/^\/users\/([^/?#]+)/) || [, name])[1] : encodeURIComponent(name);
+        const p = profileOf("https://archiveofourown.org/users/" + id);
+        const joined = Array.from(doc.querySelectorAll("dl.meta dt")).find((dt) => /joined|inscri/i.test(dt.textContent));
+        return Object.assign(p, {
+          name: clean(h.textContent) || p.name,
+          bio: paragraphs(doc.querySelector(".bio blockquote.userstuff, blockquote.userstuff")),
+          joined: joined && joined.nextElementSibling ? clean(joined.nextElementSibling.textContent) : "",
+          stats: [],
+        });
+      }
+      if (site === "ffn") {
+        const links = Array.from(doc.querySelectorAll("#content_wrapper_inner a[href^='/u/'], a[href^='/u/']"));
+        const exact = links.find((a) => clean(a.textContent).toLowerCase() === want);
+        if (!exact) return null; // FanFiction.net renvoie des noms proches : on ne garde que le pseudo exact
+        const p = profileOf(abs(exact.getAttribute("href"), "https://www.fanfiction.net"));
+        return Object.assign(p, { name: clean(exact.textContent), bio: "", joined: "", stats: [] });
+      }
+      return null;
+    },
+
     // Histoires écrites par un auteur : adresse de la page n.
     worksUrl(p, page) {
       page = page || 1;

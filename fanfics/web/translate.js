@@ -5,8 +5,9 @@
   const A = window.FanficsApp;
   const MAX = 1400; // caractères par requête (l'adresse reste courte)
 
+  // Les sites écrivent la langue en anglais (FanFiction.net : « French ») ou dans la langue même (AO3 : « Français »).
   const LANGS = {
-    fr: /fran[cç]/i, en: /^(english|anglais)/i, es: /espa[nñ]/i, de: /deutsch|allemand/i,
+    fr: /fran[cç]|french/i, en: /english|anglais/i, es: /espa[nñ]|spanish/i, de: /deutsch|allemand|german/i,
     it: /italian|italien/i, pt: /portugu/i,
   };
 

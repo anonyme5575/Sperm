@@ -28,6 +28,27 @@ App Android pour ranger les fanfics que tu aimes à partir de leurs liens.
 - Sur AO3 : filtre par langue, « Terminées » seulement, tri par kudos, mise à jour, vues ou longueur.
 - Chaque résultat : **+ Ajouter** à ta liste, ou **📖 Lire** tout de suite. Les résumés étrangers sont traduits.
 
+## L'interface
+
+- **Biblio** : ta liste, avec en tête tes chiffres (fanfics, en cours, lues, mots lus) et le carrousel **Continuer la lecture** : un toucher et tu reprends pile où tu t'étais arrêtée.
+- Chaque fanfic a une **couverture générée** : la couleur vient du fandom (toutes les fics Harry Potter ont la même teinte), le motif du titre.
+- **Découvrir** : chercher des histoires. **Comptes** : chercher un pseudo. **+** : ajouter des liens. **Réglages** : traduction, sauvegarde, comptes.
+- Lecteur : trois ambiances (🌙 nuit, ☕ sépia, ☀️ papier), barre de progression, toucher le texte pour lire en plein écran.
+
+## Chercher un compte par son pseudo
+
+**Comptes**, tape un pseudo : l'app le cherche en même temps sur AO3, FanFiction.net et Wattpad et montre les comptes trouvés. **Tout voir** ouvre sa page avec tout ce qui est public :
+
+| Site | Sections |
+|---|---|
+| FanFiction.net | Ses histoires, ses favoris, ses auteurs favoris |
+| AO3 | Ses œuvres, ses marque-pages (les abonnements AO3 sont privés) |
+| Wattpad | Ses histoires, ses listes de lecture, les comptes suivis |
+
+Depuis cette page : ajouter ou lire chaque histoire, ouvrir le profil d'un auteur suivi, **C'est moi : importer mes favoris**, **☆ Auteur favori**. Retour revient à la page précédente.
+
+Sur FanFiction.net, seul le pseudo exact est retenu (le site propose aussi des noms proches).
+
 ## Importer mes favoris, mes auteurs favoris
 
 Touche **+** et colle le lien de ton profil, ou partage ta page de profil vers l'app. L'app demande : **« C'est mon compte »** (importer tes favoris) ou **« Ajouter à mes auteurs favoris »** (le lien est celui d'un auteur).

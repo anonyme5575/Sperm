@@ -107,6 +107,7 @@
     if (p.site !== "ao3") parts.push(`${newAuthors} auteur${newAuthors > 1 ? "s" : ""} ajouté${newAuthors > 1 ? "s" : ""}`);
     A.toast(parts.join(", ") + (errors.length ? ". Problème : " + errors[0] : "."));
     if (added) { A.view.tab = "fav"; A.render(); }
+    if (A.refreshSearch && !document.getElementById("searchView").hidden) A.refreshSearch();
   }
 
   // ------------------------------------------------------------ comptes dans le menu
@@ -134,17 +135,89 @@
     }
   });
 
-  // ------------------------------------------------------------ histoires d'un auteur
+  // ------------------------------------------------------------ chercher un compte par son pseudo
 
-  function openAuthor(a) {
-    A.openList(`${a.name} · ${P.SITES[a.site]}`, async (page) => {
-      const url = PR.worksUrl(a, page);
-      if (!url) return { results: [], next: false };
-      return PR.parseWorks(a, await A.download(url, a.site, PR.readySelector(a.site)));
+  async function lookupAccount(site, name) {
+    const url = PR.lookupUrl(site, name);
+    const body = await A.download(url, site, site === "ffn" ? "#content_wrapper_inner" : "");
+    return PR.parseLookup(site, name, body);
+  }
+
+  function toggleAuthor(p) {
+    const i = A.authors.findIndex((a) => a.site === p.site && a.id === p.id);
+    if (i >= 0) { A.authors.splice(i, 1); A.save(); A.toast(`${p.name} retiré de tes auteurs favoris.`); }
+    else { A.addAuthor(p); A.toast(`${p.name} ajouté à tes auteurs favoris.`); }
+    A.render();
+  }
+
+  // ------------------------------------------------------------ page d'un compte : tout ce qui est public
+
+  const asAuthors = (list) => list.map((a) => Object.assign({ kind: "author" }, a));
+
+  function sections(p) {
+    if (p.site === "ffn") {
+      let page = null; // une seule page de profil contient tout
+      const get = () => (page = page || A.download(p.url, "ffn", PR.readySelector("ffn")).catch((e) => { page = null; throw e; }));
+      return [
+        { label: "Ses histoires", empty: "Aucune histoire publiée.", load: async () => PR.parseWorks(p, await get()) },
+        { label: "Ses favoris", empty: "Aucune histoire favorite publique.", load: async () => ({ results: PR.parseFavorites(p, "both", await get()).stories, next: false }) },
+        { label: "Auteurs favoris", empty: "Aucun auteur favori public.", load: async () => ({ results: asAuthors(PR.parseFavorites(p, "both", await get()).authors), next: false }) },
+      ];
+    }
+    if (p.site === "ao3") {
+      return [
+        { label: "Ses œuvres", empty: "Aucune œuvre publiée.", load: async (n) => PR.parseWorks(p, await A.download(PR.worksUrl(p, n), "ao3")) },
+        { label: "Marque-pages", empty: "Aucun marque-page public.", load: async (n) => {
+          const r = PR.parseFavorites(p, "stories", await A.download(PR.favoritePages(p, n)[0].url, "ao3"));
+          return { results: r.stories, next: r.next };
+        } },
+      ];
+    }
+    const [lists, following] = PR.favoritePages(p, 1);
+    return [
+      { label: "Ses histoires", empty: "Aucune histoire publiée.", load: async (n) => PR.parseWorks(p, await A.download(PR.worksUrl(p, n), "wattpad")) },
+      { label: "Listes de lecture", empty: "Aucune liste publique.", load: async () => ({ results: PR.parseFavorites(p, "stories", await A.download(lists.url, "wattpad")).stories, next: false }) },
+      { label: "Comptes suivis", empty: "Ne suit personne publiquement.", load: async () => ({ results: asAuthors(PR.parseFavorites(p, "authors", await A.download(following.url, "wattpad")).authors), next: false }) },
+    ];
+  }
+
+  function hero(p) {
+    const fav = A.authors.some((a) => a.site === p.site && a.id === p.id);
+    const mine = A.settings.accounts.some((a) => a.site === p.site && a.id === p.id);
+    const stats = (p.stats || []).map(([n, l]) => `<span class="b">${A.fmt(n)} ${esc(l)}</span>`).join("");
+    return `<section class="hero">
+      ${A.avatar(p.name, p.site, "lg")}
+      <h2>${esc(p.name)}</h2>
+      <div class="badges center"><span class="b site-${p.site}">${esc(P.SITES[p.site])}</span>${stats}</div>
+      ${p.joined ? `<div class="hint">Membre depuis ${esc(p.joined)}</div>` : ""}
+      ${p.bio ? `<div class="ssum hero-bio">${esc(p.bio)}</div>` : ""}
+      ${p.site === "ao3" ? `<div class="hint">Les auteurs suivis sur AO3 sont privés : seuls les œuvres et marque-pages sont visibles.</div>` : ""}
+      <div class="actions center">
+        <button class="${mine ? "ghost" : "primary"}" data-s="hero" data-act="import">${mine ? "⟳ Resynchroniser mes favoris" : "C'est moi : importer mes favoris"}</button>
+        <button class="ghost" data-s="hero" data-act="fav">${fav ? "✓ Auteur favori" : "☆ Auteur favori"}</button>
+        <button class="ghost" data-s="hero" data-act="site">Sur le site</button>
+      </div>
+    </section>`;
+  }
+
+  function openProfile(p) {
+    p = { site: p.site, id: p.id, name: p.name || p.id, url: p.url, bio: p.bio, joined: p.joined, stats: p.stats };
+    A.openList({
+      title: p.name,
+      sections: sections(p),
+      hero: () => hero(p),
+      onHero: (act) => {
+        if (act === "import") importAccount(Object.assign({}, p));
+        else if (act === "fav") toggleAuthor(p);
+        else if (act === "site") A.native ? Android.open(p.url) : window.open(p.url, "_blank");
+      },
     });
   }
 
   A.askProfile = askProfile;
   A.importAccount = importAccount;
-  A.openAuthor = openAuthor;
+  A.lookupAccount = lookupAccount;
+  A.openProfile = openProfile;
+  A.openAuthor = openProfile;
+  A.toggleAuthor = toggleAuthor;
 })();

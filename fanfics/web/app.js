@@ -21,7 +21,7 @@
   let authors = []; // auteurs favoris : {site, id, name, url, addedAt}
   // Réglages : traduction automatique vers `lang`, taille du texte du lecteur.
   // accounts : comptes de l'utilisatrice dont on importe les favoris.
-  const settings = { autoTranslate: true, lang: "fr", fontSize: 19, accounts: [] };
+  const settings = { autoTranslate: true, lang: "fr", fontSize: 19, accounts: [], readerTheme: "night" };
   const view = { tab: "all", q: "", fandom: "", shelf: "", sort: "added" };
   const busy = new Set(); // ids en cours de téléchargement
 
@@ -285,6 +285,71 @@
     $("shelves").innerHTML = shelves.map(([k]) => `<option value="${esc(k)}">`).join("");
   }
 
+  // ------------------------------------------------------------ couvertures et avatars générés
+  // Chaque fandom a sa palette (même fandom = même couleur), chaque titre son motif.
+
+  // Teinte stable par texte, bien répartie sur le cercle (FNV-1a puis nombre d'or).
+  function hue(str) {
+    let h = 2166136261;
+    for (const c of String(str || "")) { h ^= c.codePointAt(0); h = Math.imul(h, 16777619) >>> 0; }
+    return Math.floor(((h * 0.6180339887) % 1) * 360);
+  }
+  function shortFandom(f) {
+    const x = (f.fandoms && f.fandoms[0]) || P.SITES[f.site] || "";
+    return x.split(" - ")[0].split(" | ")[0].replace(/\s*\(.*\)\s*/g, " ").trim().slice(0, 22);
+  }
+  function cover(f, size) {
+    const h = hue((f.fandoms && f.fandoms[0]) || f.title);
+    const letter = (String(f.title || "?").replace(/^[^\p{L}\p{N}]+/u, "").charAt(0) || "?").toUpperCase();
+    return `<div class="cover ${size || ""} p${hue(f.title) % 4}" style="--h:${h};--h2:${(h + 48) % 360}" aria-hidden="true">
+      <span class="cl">${esc(letter)}</span><span class="cf">${esc(shortFandom(f))}</span></div>`;
+  }
+  function avatar(name, site, size) {
+    const n = String(name || "?").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+    const parts = n.split(" ");
+    const ini = (parts.length > 1 ? parts[0][0] + parts[1][0] : n.slice(0, 2)) || "?";
+    const h = hue(name);
+    return `<div class="avatar ${size || ""}" style="--h:${h};--h2:${(h + 60) % 360}" aria-hidden="true">${esc(ini.toUpperCase())}<i class="sdot site-${site}"></i></div>`;
+  }
+
+  // ------------------------------------------------------------ en-tête et « Continuer la lecture »
+
+  function greeting() {
+    const h = new Date().getHours();
+    return h < 5 ? "Encore debout ?" : h < 12 ? "Bonjour" : h < 18 ? "Bon après-midi" : "Bonsoir";
+  }
+
+  function renderHeader() {
+    const read = fics.filter((f) => f.status === "read");
+    const words = read.reduce((t, f) => t + (f.words || 0), 0) +
+      fics.filter((f) => f.status === "reading" && f.words && f.lastRead && (f.chaptersTotal || f.chapters))
+        .reduce((t, f) => t + Math.round(f.words * Math.min(1, f.lastRead / (f.chaptersTotal || f.chapters))), 0);
+    const short = (n) => (n >= 1e6 ? (n / 1e6).toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " M" : n >= 1e4 ? Math.round(n / 1e3) + " k" : fmt(n));
+    $("hello").textContent = greeting();
+    $("hstats").innerHTML = [
+      [fics.length, "fanfics"], [fics.filter((f) => f.status === "reading").length, "en cours"],
+      [read.length, "lues"], [words, "mots lus"],
+    ].map(([n, l]) => `<div><b>${short(n || 0)}</b><span>${l}</span></div>`).join("");
+  }
+
+  function renderContinue() {
+    const box = $("continue");
+    const show = view.tab === "all" && !view.q && !view.fandom && !view.shelf;
+    const list = show ? fics.filter((f) => (f.status === "reading" || f.readCh) && f.status !== "read" && f.status !== "dropped")
+      .sort((a, b) => (b.readAt || b.addedAt) - (a.readAt || a.addedAt)).slice(0, 12) : [];
+    box.hidden = !list.length;
+    if (!list.length) return;
+    $("contList").innerHTML = list.map((f, i) => {
+      const total = f.chaptersTotal || f.chapters || 0;
+      const ch = f.readCh || Math.min((f.lastRead || 0) + 1, total || 1);
+      const pct = total ? Math.min(100, Math.round(((ch - 1 + (f.readScroll || 0)) / total) * 100)) : 0;
+      return `<button class="cont" data-cont="${f.id}" style="--i:${i}">
+        <div class="cwrap">${cover(f, "md")}<svg class="ring" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.5"/><circle class="v" cx="18" cy="18" r="15.5" style="stroke-dasharray:${(pct * 97.4) / 100} 97.4"/></svg><span class="pct">${pct}%</span></div>
+        <b>${esc(f.title)}</b><small>Chap. ${ch}${total ? " / " + total : ""}${f.newChapters > 0 ? ` · <em>+${f.newChapters}</em>` : ""}</small>
+      </button>`;
+    }).join("");
+  }
+
   // ------------------------------------------------------------ liste
 
   function chapText(f) {
@@ -292,6 +357,7 @@
     return `${f.chapters}/${f.chaptersTotal == null ? "?" : f.chaptersTotal} chap.`;
   }
 
+  let cardIndex = 0;
   function card(f) {
     const b = [];
     if (f.newChapters > 0) b.push(`<span class="b new">+${f.newChapters} chap.</span>`);
@@ -304,11 +370,17 @@
     for (const s of f.shelves || []) b.push(`<span class="b shelf">${esc(s)}</span>`);
     const total = f.chaptersTotal || f.chapters;
     const pct = total && f.lastRead ? Math.min(100, Math.round((f.lastRead / total) * 100)) : 0;
-    return `<article class="card ${f.status}" data-id="${f.id}">
+    return `<article class="card ${f.status}" data-id="${f.id}" style="--i:${cardIndex++ % 14}">
       ${f.fav ? `<span class="fav">★</span>` : ""}
-      <div class="t">${esc(f.title)}</div>
-      <div class="a">${f.author ? "par " + esc(f.author) : "&nbsp;"}${f.stars ? ` · <span class="stars">${"★".repeat(f.stars)}</span>` : ""}</div>
-      ${f.fandoms && f.fandoms.length ? `<div class="f">${esc(f.fandoms.slice(0, 3).join(" · "))}</div>` : ""}
+      <div class="crow">
+        ${cover(f, "sm")}
+        <div class="cbody">
+          <div class="t">${esc(f.title)}</div>
+          <div class="a">${f.author ? "par " + esc(f.author) : "&nbsp;"}${f.stars ? ` · <span class="stars">${"★".repeat(f.stars)}</span>` : ""}</div>
+          ${f.fandoms && f.fandoms.length ? `<div class="f">${esc(f.fandoms.slice(0, 3).join(" · "))}</div>` : ""}
+          <div class="st"><i></i>${STATUS_ONE[f.status] || ""}</div>
+        </div>
+      </div>
       <div class="badges">${b.join("")}</div>
       ${busy.has(f.id) ? `<div class="loading">Lecture des infos…</div>` : ""}
       ${pct ? `<div class="bar2"><i style="width:${pct}%"></i></div>` : ""}
@@ -326,9 +398,11 @@
       .sort((a, b) => a.name.localeCompare(b.name, "fr", { sensitivity: "base" }));
     $("list").innerHTML = list.map((a) => {
       const n = authorFics(a).length;
-      return `<article class="card author" data-author="${esc(a.site + ":" + a.id)}">
+      return `<article class="card author" data-author="${esc(a.site + ":" + a.id)}" style="--i:${cardIndex++ % 14}">
+        <div class="crow">${avatar(a.name, a.site)}<div class="cbody">
         <div class="t">${esc(a.name)}</div>
-        <div class="badges"><span class="b">${esc(P.SITES[a.site])}</span>${n ? `<span class="b shelf">${n} fic${n > 1 ? "s" : ""} dans ta liste</span>` : ""}</div>
+        <div class="badges"><span class="b site-${a.site}">${esc(P.SITES[a.site])}</span>${n ? `<span class="b shelf">${n} fic${n > 1 ? "s" : ""} dans ta liste</span>` : ""}</div>
+        </div></div>
         <div class="actions"><button class="ghost" data-au="remove">Retirer</button><button class="primary" data-au="works">Ses histoires</button></div>
       </article>`;
     }).join("");
@@ -338,8 +412,14 @@
       "Aucun auteur favori.\n\nTouche + et colle le lien de ton compte (FanFiction.net, AO3 ou Wattpad) pour importer tes favoris,\nou le lien de la page d'un auteur.";
   }
 
+  let animateNext = true; // cartes animées au démarrage et au changement d'onglet, pas à chaque frappe
   function render() {
+    cardIndex = 0;
+    $("list").classList.toggle("anim", animateNext);
+    animateNext = false;
+    renderHeader();
     renderFilters();
+    renderContinue();
     if (view.tab === "authors") return renderAuthors();
     const list = visible();
     $("list").innerHTML = list.map(card).join("");
@@ -377,8 +457,14 @@
     ].filter(([, v]) => v);
 
     const body = editing ? editForm(f) : `
-      <div class="d-title">${esc(f.title)}</div>
-      <div class="d-sub">${f.author ? "par " + esc(f.author) : "auteur inconnu"}</div>
+      <div class="dhero" style="--h:${hue((f.fandoms && f.fandoms[0]) || f.title)}">
+        ${cover(f, "lg")}
+        <div class="dinfo">
+          <div class="d-title">${esc(f.title)}</div>
+          <div class="d-sub">${f.author ? "par " + esc(f.author) : "auteur inconnu"}</div>
+          <div class="badges">${f.words ? `<span class="b">${fmt(f.words)} mots</span>` : ""}${f.chapters != null ? `<span class="b">${chapText(f)}</span>` : ""}${f.fetchedAt ? (f.complete ? `<span class="b done">Terminée</span>` : `<span class="b wip">En cours d'écriture</span>`) : ""}</div>
+        </div>
+      </div>
       ${f.newChapters > 0 ? `<p><span class="b new">${f.newChapters} nouveau${f.newChapters > 1 ? "x" : ""} chapitre${f.newChapters > 1 ? "s" : ""}</span> <button class="ghost" data-act="seen">Vu</button></p>` : ""}
       ${f.error && !busy.has(f.id) ? `<p class="hint" style="color:var(--bad)">${f.fetchedAt ? "Dernière relecture impossible : " : ""}${esc(f.error)}</p>` : ""}
       ${busy.has(f.id) ? `<p class="hint">Lecture des infos…</p>` : ""}
@@ -664,12 +750,12 @@
   // ------------------------------------------------------------ événements
 
   $("search").addEventListener("input", (e) => { view.q = e.target.value.trim(); render(); });
-  $("fFandom").addEventListener("change", (e) => { view.fandom = e.target.value; render(); });
+  $("fFandom").addEventListener("change", (e) => { view.fandom = e.target.value; animateNext = true; render(); });
   $("fShelf").addEventListener("change", (e) => { view.shelf = e.target.value; render(); });
   $("fSort").addEventListener("change", (e) => { view.sort = e.target.value; render(); });
   $("tabs").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-tab]");
-    if (b) { view.tab = b.dataset.tab; render(); }
+    if (b) { view.tab = b.dataset.tab; animateNext = true; render(); }
   });
   $("list").addEventListener("click", (e) => {
     const au = e.target.closest("[data-author]");
@@ -731,7 +817,17 @@
   }
 
   $("btnUpdates").addEventListener("click", checkUpdates);
-  $("btnSearch").addEventListener("click", () => window.FanficsApp.openSearch());
+  $("btnSearch").addEventListener("click", () => window.FanficsApp.openSearch("stories"));
+  $("btnAccounts").addEventListener("click", () => window.FanficsApp.openSearch("accounts"));
+  $("navHome").addEventListener("click", () => {
+    closeSheets();
+    while (backHandlers.some((h) => h())) { /* ferme lecteur et recherche */ }
+    document.scrollingElement.scrollTo({ top: 0, behavior: "smooth" });
+  });
+  $("contList").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-cont]");
+    if (b) window.FanficsApp.openReader(b.dataset.cont);
+  });
   $("btnMenu").addEventListener("click", () => {
     const words = fics.filter((f) => f.status === "read").reduce((s, f) => s + (f.words || 0), 0);
     $("stats").textContent = `${fics.length} fanfic${fics.length > 1 ? "s" : ""} · ${fics.filter((f) => f.status === "read").length} lue${fics.filter((f) => f.status === "read").length > 1 ? "s" : ""}` +
@@ -785,6 +881,7 @@
     setLastRead, openDetail, backHandlers, settings, native,
     get fics() { return fics; },
     get authors() { return authors; },
+    cover, avatar, hue,
     addAuthor, view, showProgress,
     find: (id) => fics.find((f) => f.id === id),
     findStory,

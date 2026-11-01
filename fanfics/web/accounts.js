@@ -9,6 +9,28 @@
   const esc = A.esc;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+  // Télécharge la première adresse qui répond vraiment (les autres : 404, 400 ou erreur Wattpad).
+  // L'adresse qui a marché est retenue pour les fois suivantes.
+  const working = {};
+  async function firstOk(urls, site, ready) {
+    const key = site + ":" + urls.map((u) => u.replace(/\/users\/[^/]+/, "/users/*").split("?")[0]).join("|");
+    const order = working[key] != null ? [urls[working[key]], ...urls.filter((_, i) => i !== working[key])] : urls;
+    let last = null;
+    for (const u of order) {
+      try {
+        const body = await A.download(u, site, ready);
+        if (site === "wattpad" && PR.wattpadError(body)) { last = new Error("Réponse inattendue de Wattpad."); continue; }
+        working[key] = urls.indexOf(u);
+        return body;
+      } catch (e) {
+        last = e;
+        if (!/introuvable|404|400|répondu 4/i.test(e.message)) throw e;
+      }
+    }
+    throw last || new Error("Aucune adresse ne répond.");
+  }
+  const pageUrls = (pg) => [pg.url, ...(pg.alts || [])];
+
   const SOURCE = { ffn: "Favoris FanFiction.net", ao3: "Marque-pages AO3", wattpad: "Listes Wattpad" };
   const WHAT = {
     ffn: "ses histoires favorites et ses auteurs favoris",
@@ -69,7 +91,7 @@
           A.showProgress(`Import des favoris ${P.SITES[p.site]}…${page > 1 ? " page " + page : ""} (${added} ajoutée${added > 1 ? "s" : ""})`);
           let r;
           try {
-            r = PR.parseFavorites(p, pg.kind, await A.download(pg.url, p.site, PR.readySelector(p.site)));
+            r = PR.parseFavorites(p, pg.kind, await firstOk(pageUrls(pg), p.site, PR.readySelector(p.site)));
           } catch (e) {
             errors.push((pg.kind === "authors" ? "auteurs suivis : " : "") + e.message);
             continue;
@@ -175,16 +197,16 @@
     }
     const [lists, following] = PR.favoritePages(p, 1);
     return [
-      { label: "Ses histoires", empty: "Aucune histoire publiée.", load: async (n) => PR.parseWorks(p, await A.download(PR.worksUrl(p, n), "wattpad")) },
-      { label: "Listes de lecture", empty: "Aucune liste publique.", load: async () => ({ results: PR.parseFavorites(p, "stories", await A.download(lists.url, "wattpad")).stories, next: false }) },
-      { label: "Comptes suivis", empty: "Ne suit personne publiquement.", load: async () => ({ results: asAuthors(PR.parseFavorites(p, "authors", await A.download(following.url, "wattpad")).authors), next: false }) },
+      { label: "Ses histoires", empty: "Aucune histoire publiée.", load: async (n) => PR.parseWorks(p, await firstOk(PR.worksUrls(p, n), "wattpad")) },
+      { label: "Listes de lecture", empty: "Aucune liste publique.", load: async () => ({ results: PR.parseFavorites(p, "stories", await firstOk(pageUrls(lists), "wattpad")).stories, next: false }) },
+      { label: "Comptes suivis", empty: "Ne suit personne publiquement.", load: async () => ({ results: asAuthors(PR.parseFavorites(p, "authors", await firstOk(pageUrls(following), "wattpad")).authors), next: false }) },
     ];
   }
 
   function hero(p) {
     const fav = A.authors.some((a) => a.site === p.site && a.id === p.id);
     const mine = A.settings.accounts.some((a) => a.site === p.site && a.id === p.id);
-    const stats = (p.stats || []).map(([n, l]) => `<span class="b">${A.fmt(n)} ${esc(l)}</span>`).join("");
+    const stats = (p.stats || []).map(([n, l]) => `<span class="b">${A.fmt(n)} ${esc(A.plural(n, l))}</span>`).join("");
     return `<section class="hero">
       ${A.avatar(p.name, p.site, "lg")}
       <h2>${esc(p.name)}</h2>

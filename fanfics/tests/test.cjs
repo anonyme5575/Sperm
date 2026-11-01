@@ -326,7 +326,16 @@ async function test(name, fn) {
       const seg = lines.map((l, i) => [(fr ? "" : "[FR] ") + l + (i < lines.length - 1 ? "\n" : ""), l]);
       return { ok: true, status: 200, body: JSON.stringify([seg, null, fr ? "fr" : "en"]) };
     }
-    return routes[url] || { ok: false, status: 404, error: "Page introuvable" };
+    if (routes[url]) return routes[url];
+    // Wattpad : plusieurs adresses d'API possibles ; seules certaines répondent.
+    const wp = [
+      [/\/api\/v3\/users\/jose\?/, { ok: true, status: 200, body: page("wattpad-user.json").replace("luna_ecrit", "jose") }],
+      [/\/api\/v3\/users\/jose\/stories\?/, { ok: true, status: 200, body: page("wattpad-search.json") }],
+      [/\/api\/v3\/users\/jose\/lists\?/, { ok: true, status: 200, body: '{"error_type":"NotFound"}' }],
+      [/\/v4\/users\/jose\/lists\?/, { ok: true, status: 200, body: page("wattpad-lists.json") }],
+      [/\/api\/v3\/users\/jose\/following\?/, { ok: true, status: 200, body: page("wattpad-following.json") }],
+    ].find(([re]) => re.test(url));
+    return wp ? wp[1] : { ok: false, status: 404, error: "Page introuvable (supprimée ou lien erroné)." };
   });
   await ctx.addInitScript(() => {
     const results = {};
@@ -724,6 +733,31 @@ async function test(name, fn) {
     assert.strictEqual(await app.inputValue("#sQuery"), "Moi");
     assert.strictEqual(await app.evaluate(() => window.__back()), true);
     assert.strictEqual(await app.isHidden("#searchView"), true);
+  });
+
+  await test("app : profil Wattpad — adresses d'API essayées jusqu'à la bonne", async () => {
+    await app.click("#btnAccounts");
+    await app.fill("#sQuery", "jose");
+    await app.press("#sQuery", "Enter");
+    await app.waitForFunction(() => document.querySelectorAll(".person").length === 1 && !document.querySelector(".spinner"));
+    const card = await app.textContent(".person");
+    assert.match(card, /4 histoires/);
+    assert.match(card, /2 listes/);
+    await app.click(".person [data-s=profile]");
+    await app.waitForFunction(() => document.querySelectorAll(".sres .t").length === 1);
+    assert.deepStrictEqual(await app.$$eval(".sres .t", (e) => e.map((x) => x.textContent)), ["Les Étoiles Filantes"]);
+    await app.click("#sSections [data-sec='1']");
+    await app.waitForFunction(() => document.querySelectorAll(".sres .t").length === 2);
+    await app.click("#sSections [data-sec='2']");
+    await app.waitForFunction(() => document.querySelectorAll(".person").length === 2);
+    const tried = calls.filter((u) => /users\/jose\/(stories|lists)/.test(u)).map((u) => u.replace(/\?.*/, ""));
+    assert.deepStrictEqual(tried, [
+      "https://www.wattpad.com/v4/users/jose/stories/published",
+      "https://www.wattpad.com/api/v3/users/jose/stories",
+      "https://www.wattpad.com/api/v3/users/jose/lists",
+      "https://www.wattpad.com/v4/users/jose/lists",
+    ]);
+    await app.evaluate(() => { while (window.__back()) { /* ferme tout */ } });
   });
 
   await test("app : « Continuer la lecture » reprend la lecture", async () => {

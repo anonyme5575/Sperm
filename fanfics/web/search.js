@@ -58,7 +58,7 @@
   function personCard(r, i) {
     const fav = A.authors.some((a) => a.site === r.site && a.id === r.id);
     const isAccount = r.kind === "account";
-    const stats = (r.stats || []).map(([n, l]) => `<span class="b">${A.fmt(n)} ${esc(l)}</span>`).join("");
+    const stats = (r.stats || []).map(([n, l]) => `<span class="b">${A.fmt(n)} ${esc(A.plural(n, l))}</span>`).join("");
     return `<article class="card person sres" data-i="${i}" style="--i:${i % 12}">
       <div class="crow">
         ${A.avatar(r.name, r.site)}

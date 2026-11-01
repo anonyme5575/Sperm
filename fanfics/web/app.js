@@ -887,6 +887,7 @@
     get fics() { return fics; },
     get authors() { return authors; },
     cover, avatar, hue,
+    plural: (n, word) => (n > 1 ? word : word.replace(/s$/, "")), // « 1 histoire », « 13 abonnés »
     addAuthor, view, showProgress,
     find: (id) => fics.find((f) => f.id === id),
     findStory,

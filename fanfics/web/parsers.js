@@ -461,6 +461,7 @@
     return null;
   }
 
+  const WP = "https://www.wattpad.com";
   const WP_STORY = "id,title,user(name),description,numParts,completed,tags,voteCount,mature,language(name)";
   const wpStories = (list) => (list || []).filter((x) => x && x.id).map((x) => Object.assign(parseWattpadJson(x), { url: "https://www.wattpad.com/story/" + x.id, site: "wattpad" }));
 
@@ -473,9 +474,12 @@
       if (p.site === "ao3") return [{ kind: "stories", url: "https://archiveofourown.org/users/" + p.id + "/bookmarks" + (page > 1 ? "?page=" + page : "") }];
       if (p.site === "wattpad") {
         if (page > 1) return [];
+        // L'API de Wattpad n'est pas documentée : plusieurs adresses possibles, essayées dans l'ordre (alts).
+        const lists = "/lists?limit=50&fields=lists(name,stories(" + WP_STORY + "))";
+        const follow = "/following?limit=200&fields=users(username,name)";
         return [
-          { kind: "stories", url: "https://www.wattpad.com/api/v3/users/" + p.id + "/lists?limit=50&fields=lists(name,stories(" + WP_STORY + "))" },
-          { kind: "authors", url: "https://www.wattpad.com/api/v3/users/" + p.id + "/following?limit=200&fields=users(username,name)" },
+          { kind: "stories", url: WP + "/api/v3/users/" + p.id + lists, alts: [WP + "/v4/users/" + p.id + lists] },
+          { kind: "authors", url: WP + "/api/v3/users/" + p.id + follow, alts: [WP + "/v4/users/" + p.id + follow] },
         ];
       }
       return [];
@@ -572,17 +576,35 @@
 
     // Histoires écrites par un auteur : adresse de la page n.
     worksUrl(p, page) {
+      return this.worksUrls(p, page)[0] || null;
+    },
+
+    // Adresses possibles, dans l'ordre d'essai (Wattpad en a plusieurs selon les versions de son API).
+    worksUrls(p, page) {
       page = page || 1;
-      if (p.site === "ffn") return page === 1 ? p.url : null;
-      if (p.site === "ao3") return "https://archiveofourown.org/users/" + p.id + "/works" + (page > 1 ? "?page=" + page : "");
-      if (p.site === "wattpad") return "https://www.wattpad.com/api/v3/users/" + p.id + "/stories/published?limit=50&offset=" + (page - 1) * 50 + "&fields=stories(" + WP_STORY + "),nextUrl";
-      return null;
+      if (p.site === "ffn") return page === 1 ? [p.url] : [];
+      if (p.site === "ao3") return ["https://archiveofourown.org/users/" + p.id + "/works" + (page > 1 ? "?page=" + page : "")];
+      if (p.site === "wattpad") {
+        const q = "?offset=" + (page - 1) * 50 + "&limit=50&fields=stories(" + WP_STORY + "),total,nextUrl";
+        return [
+          WP + "/v4/users/" + p.id + "/stories/published" + q,
+          WP + "/api/v3/users/" + p.id + "/stories" + q,
+          WP + "/api/v3/users/" + p.id + "/stories/published" + q,
+        ];
+      }
+      return [];
+    },
+
+    // Réponse de Wattpad qui est en fait une erreur (certaines adresses répondent 200 avec un message d'erreur).
+    wattpadError(body) {
+      try { const d = JSON.parse(body); return !!(d && (d.error_type || d.error_code || d.error)); } catch (e) { return true; }
     },
 
     parseWorks(p, body) {
       if (p.site === "wattpad") {
         const d = JSON.parse(body);
-        return { results: wpStories(d.stories), next: !!d.nextUrl };
+        const results = wpStories(d.stories);
+        return { results, next: !!d.nextUrl || (d.total != null && results.length >= 50) };
       }
       const doc = html(body);
       if (p.site === "ao3") return { results: Array.from(doc.querySelectorAll("li.work.blurb, li.blurb")).map(ao3Blurb).filter(Boolean), next: ao3Next(doc) };

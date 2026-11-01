@@ -70,7 +70,7 @@
     const site = siteOf(url);
     let title = "";
     let m;
-    if (site === "ffn" && (m = url.match(/\/s\/\d+\/\d+\/([^/?#]+)/))) title = slug(m[1]);
+    if (site === "ffn") title = (m = url.match(/\/s\/\d+\/\d+\/([^/?#]+)/)) ? slug(m[1]) : "FanFiction.net n° " + (url.match(/\/s\/(\d+)/) || [, ""])[1];
     else if (site === "wattpad" && (m = url.match(/\/\d+-([^/?#]+)/))) title = slug(m[1]);
     else if (site === "ao3") title = "AO3 n° " + (url.match(/(\d+)$/) || [, ""])[1];
     else {
@@ -150,9 +150,12 @@
   function parseFfn(doc) {
     const top = doc.querySelector("#profile_top");
     if (!top) {
-      if (/cloudflare|just a moment|cf-/i.test(doc.documentElement.innerHTML.slice(0, 5000)))
-        throw new Error("FanFiction.net bloque la lecture automatique (protection anti-robot).");
-      throw new Error("Page FanFiction.net non reconnue.");
+      const page = clean(doc.title) || clean(doc.body ? doc.body.textContent : "").slice(0, 80);
+      if (/just a moment|un instant|verify you are human|cf-chl|challenge-platform/i.test(doc.documentElement.innerHTML))
+        throw new Error("FanFiction.net bloque la lecture automatique (protection anti-robot). Page reçue : « " + page + " »");
+      if (/story not found|unable to locate story/i.test(doc.body ? doc.body.textContent : ""))
+        throw new Error("Histoire introuvable sur FanFiction.net (supprimée ou lien erroné).");
+      throw new Error("Page FanFiction.net non reconnue. Page reçue : « " + page + " »");
     }
     const stats = text(top, "span.xgray");
     const field = (name) => { const m = stats.match(new RegExp(name + ":\\s*([^-]+?)\\s*(?:-|$)")); return m ? m[1].trim() : ""; };

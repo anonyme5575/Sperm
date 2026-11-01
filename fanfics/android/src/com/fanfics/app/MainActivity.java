@@ -247,7 +247,7 @@ public class MainActivity extends Activity {
             + "var t=(d.title||'')+' '+(d.body?d.body.innerText.slice(0,3000):'');"
             + "if(/just a moment|un instant|verify you are human|v\u00e9rifi|checking your browser|cloudflare|ddos/i.test(t))return 'WAIT';"
             + "if(/maintenance/i.test(t))return 'MAINT';"
-            + "if(d.readyState==='complete'&&d.body&&d.body.innerText.length>200)return 'OK'+d.documentElement.outerHTML;"
+            + "if(d.readyState==='complete'&&d.body&&d.body.innerText.length>200)return 'PAGE'+d.documentElement.outerHTML;"
             + "return 'WAIT';})()";
 
     private final ArrayDeque<String[]> bQueue = new ArrayDeque<>();
@@ -271,12 +271,15 @@ public class MainActivity extends Activity {
                     try { r = new JSONArray("[" + v + "]").optString(0, ""); } catch (Exception ignored) { }
                     long elapsed = SystemClock.uptimeMillis() - bStart;
                     try {
-                        if (r.startsWith("OK")) {
+                        // PAGE = page chargée sans fiche d'histoire : on laisse quelques secondes
+                        // à une éventuelle redirection avant de la rendre telle quelle.
+                        if (r.startsWith("OK") || (r.startsWith("PAGE") && elapsed > 6000)) {
                             CookieManager.getInstance().flush();
                             JSONObject o = new JSONObject();
                             o.put("ok", true);
                             o.put("status", 200);
-                            o.put("body", r.substring(2));
+                            o.put("url", browser.getUrl());
+                            o.put("body", r.substring(r.startsWith("OK") ? 2 : 4));
                             finishBrowser(o.toString());
                         } else if (r.equals("MAINT")) {
                             finishBrowser(error("Le site est en maintenance : réessaie plus tard."));
@@ -334,8 +337,7 @@ public class MainActivity extends Activity {
         WebSettings s = browser.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
-        // Même identité que Chrome sur ce téléphone (sans la mention « wv » propre aux WebView).
-        s.setUserAgentString(s.getUserAgentString().replace("; wv)", ")"));
+        s.setUserAgentString(desktopUserAgent(s.getUserAgentString()));
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(browser, true);
         browser.setWebViewClient(new WebViewClient());
@@ -363,6 +365,16 @@ public class MainActivity extends Activity {
         browserBox.addView(bar, new LinearLayout.LayoutParams(-1, -2));
         browserBox.addView(browser, new LinearLayout.LayoutParams(-1, 0, 1));
         root.addView(browserBox, 0); // derrière l'interface : chargée et active, mais pas visible
+    }
+
+    /**
+     * Ce que fait Chrome avec « Version pour ordinateur » : même version de Chrome, mais annoncé
+     * comme un ordinateur. Sinon FanFiction.net renvoie vers m.fanfiction.net, mis en page autrement.
+     */
+    static String desktopUserAgent(String ua) {
+        Matcher m = Pattern.compile("Chrome/[\\d.]+").matcher(ua);
+        String chrome = m.find() ? m.group() : "Chrome/124.0.0.0";
+        return "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) " + chrome + " Safari/537.36";
     }
 
     private void showBrowser() {

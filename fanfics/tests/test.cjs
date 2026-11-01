@@ -114,6 +114,16 @@ async function test(name, fn) {
     assert.match(r.error, /anti-robot/);
   });
 
+  await test("FanFiction.net : page normale sans fiche -> pas pris pour un blocage", async () => {
+    const r = await parse("https://www.fanfiction.net/s/14403715/1/", page("ffn-autre.html"));
+    assert.match(r.error, /non reconnue.*unleash your imagination/);
+  });
+
+  await test("FanFiction.net : lien sans titre -> numéro de l'histoire", async () => {
+    const r = await p.evaluate(() => Parsers.fromUrl(Parsers.canonical("https://m.fanfiction.net/s/14403715/1/")));
+    assert.deepStrictEqual(r, { site: "ffn", title: "FanFiction.net n° 14403715" });
+  });
+
   await test("Wattpad : API", async () => {
     const r = await parse("https://www.wattpad.com/story/18225403", page("wattpad.json"));
     assert.strictEqual(r.title, "Les Étoiles Filantes");

@@ -17,15 +17,12 @@ button { cursor: pointer; transition: transform .15s var(--ease), background .2s
 button:active { transform: scale(.95); }
 svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
-/* ---------------------------------------------------------------- aurore */
-.aurora { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
-.aurora i { position: absolute; width: 90vmax; height: 90vmax; border-radius: 50%; opacity: .55; will-change: transform; }
-.aurora i:nth-child(1) { background: radial-gradient(circle, rgba(123, 92, 255, .38), transparent 62%); top: -45vmax; left: -30vmax; animation: drift1 26s ease-in-out infinite alternate; }
-.aurora i:nth-child(2) { background: radial-gradient(circle, rgba(255, 95, 168, .26), transparent 60%); top: -35vmax; right: -45vmax; animation: drift2 32s ease-in-out infinite alternate; }
-.aurora i:nth-child(3) { background: radial-gradient(circle, rgba(63, 224, 230, .16), transparent 60%); bottom: -55vmax; left: -20vmax; animation: drift3 38s ease-in-out infinite alternate; }
-@keyframes drift1 { to { transform: translate(18vmax, 14vmax) scale(1.15); } }
-@keyframes drift2 { to { transform: translate(-22vmax, 20vmax) scale(.9); } }
-@keyframes drift3 { to { transform: translate(25vmax, -18vmax) scale(1.2); } }
+/* ---------------------------------------------------------------- fond
+   Dégradés fixes dessinés une seule fois (l'ancien fond animé gardait ~20 Mo de calques graphiques). */
+body { background:
+  radial-gradient(80vmax 60vmax at -10% -10%, rgba(123, 92, 255, .2), transparent 60%),
+  radial-gradient(70vmax 50vmax at 110% 0%, rgba(255, 95, 168, .12), transparent 60%),
+  var(--bg); background-attachment: fixed; }
 
 /* ---------------------------------------------------------------- en-tête */
 header { position: sticky; top: 0; z-index: 5; padding: 14px 14px 8px; background: linear-gradient(180deg, rgba(10, 9, 16, .96) 70%, rgba(10, 9, 16, .82)); border-bottom: 1px solid var(--line); }
@@ -110,6 +107,7 @@ main { padding: 12px 12px calc(var(--nav) + 40px); display: grid; gap: 12px; gri
 #list.anim .card { animation: rise .5s var(--ease) both; animation-delay: calc(var(--i, 0) * 40ms); }
 
 .card { position: relative; border-radius: 20px; padding: 12px; border: 1px solid var(--line);
+  content-visibility: auto; contain-intrinsic-size: auto 190px; /* cartes hors écran : ni mises en page ni dessinées */
   background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .025)); }
 .card:active { background: linear-gradient(180deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .04)); }
 .crow { display: flex; gap: 13px; align-items: flex-start; }
@@ -127,8 +125,7 @@ main { padding: 12px 12px calc(var(--nav) + 40px); display: grid; gap: 12px; gri
 .badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
 .badges.center { justify-content: center; }
 .b { font-size: 11.5px; background: rgba(255, 255, 255, .07); border-radius: 7px; padding: 2px 8px; color: #c8c1d6; }
-.b.new { background: var(--pink); color: #fff; font-weight: 700; box-shadow: 0 0 16px -2px var(--pink); animation: pulse 2.2s ease-in-out infinite; }
-@keyframes pulse { 50% { box-shadow: 0 0 4px -2px var(--pink); } }
+.b.new { background: var(--pink); color: #fff; font-weight: 700; }
 .b.done { color: var(--ok); background: rgba(95, 224, 164, .1); }
 .b.wip { color: var(--warn); background: rgba(255, 191, 90, .1); }
 .b.err { color: var(--bad); background: rgba(255, 107, 136, .1); }
@@ -248,9 +245,8 @@ dl.meta dd { margin: 0; word-break: break-word; }
 .ssum { font-size: 13px; color: #d6cfe2; margin-top: 9px; white-space: pre-line; max-height: 9.5em; overflow: hidden; }
 .rwait { text-align: center; color: var(--muted); padding: 50px 20px; font-size: 15px; margin: 0; }
 .welcome { text-align: center; padding: 50px 26px; color: var(--muted); }
-.welcome .big { font-size: 54px; margin-bottom: 10px; filter: drop-shadow(0 8px 24px rgba(123, 92, 255, .6)); animation: float 4s ease-in-out infinite; }
+.welcome .big { font-size: 54px; margin-bottom: 10px; }
 .welcome b { display: block; color: var(--text); font-size: 19px; margin-bottom: 8px; }
-@keyframes float { 50% { transform: translateY(-8px); } }
 .hero { text-align: center; padding: 20px 10px 8px; display: flex; flex-direction: column; align-items: center; gap: 6px;
   background: radial-gradient(80% 90% at 50% 0%, rgba(123, 92, 255, .22), transparent 70%); border-radius: 24px; }
 .hero h2 { font-size: 26px; font-weight: 850; letter-spacing: -.03em; margin: 8px 0 2px; }
@@ -302,3 +298,15 @@ dl.meta dd { margin: 0; word-break: break-word; }
 .sechead span { color: var(--muted); font-size: 13px; }
 .tip { grid-column: 1 / -1; text-align: center; margin-top: 4px; }
 #sTitle[hidden] { display: none; }
+
+#more { grid-column: 1 / -1; height: 1px; }
+
+/* Mode léger : automatique sur les petits téléphones (≤ 2 Go de mémoire ou ≤ 4 cœurs), réglable.
+   Ni animations, ni ombres, ni dégradés de fond : le moins de travail possible pour l'écran. */
+.lite *, .lite *::before, .lite *::after { animation: none !important; transition: none !important; box-shadow: none !important; text-shadow: none !important; filter: none !important; }
+.lite body { background: var(--bg); }
+.lite .cover::before { display: none; }
+
+/* Traduction progressive : l'original en attente est grisé, chaque paragraphe s'éclaire en arrivant. */
+#rBody.translating p[data-k]:not(.tr) { opacity: .4; }
+#rBody p[data-k] { transition: opacity .25s; }

@@ -21,7 +21,7 @@
   let authors = []; // auteurs favoris : {site, id, name, url, addedAt}
   // Réglages : traduction automatique vers `lang`, taille du texte du lecteur.
   // accounts : comptes de l'utilisatrice dont on importe les favoris.
-  const settings = { autoTranslate: true, lang: "fr", fontSize: 19, accounts: [], readerTheme: "night" };
+  const settings = { autoTranslate: true, lang: "fr", fontSize: 19, accounts: [], readerTheme: "night", lite: "auto", notify: true };
   const view = { tab: "all", q: "", fandom: "", shelf: "", sort: "added" };
   const busy = new Set(); // ids en cours de téléchargement
 
@@ -43,7 +43,7 @@
   let saveTimer = 0;
   function save() {
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(flush, 150);
+    saveTimer = setTimeout(flush, 400); // regroupe les écritures : la mémoire flash des petits téléphones est lente
   }
   function flush() {
     clearTimeout(saveTimer);
@@ -418,6 +418,19 @@
   }
 
   let animateNext = true; // cartes animées au démarrage et au changement d'onglet, pas à chaque frappe
+  const PAGE = 30;
+  let shown = PAGE, shownKey = "", current = [];
+  const moreObserver = new IntersectionObserver((entries) => {
+    if (!entries.some((e) => e.isIntersecting)) return;
+    const more = $("more");
+    if (!more) return;
+    moreObserver.unobserve(more);
+    more.remove();
+    const next = current.slice(shown, shown + PAGE);
+    shown += PAGE;
+    $("list").insertAdjacentHTML("beforeend", next.map(card).join("") + (current.length > shown ? `<div id="more" aria-hidden="true"></div>` : ""));
+    if (current.length > shown) moreObserver.observe($("more"));
+  }, { rootMargin: "800px" });
   function render() {
     cardIndex = 0;
     $("list").classList.toggle("anim", animateNext);
@@ -427,7 +440,12 @@
     renderContinue();
     if (view.tab === "authors") return renderAuthors();
     const list = visible();
-    $("list").innerHTML = list.map(card).join("");
+    // N'affiche que les premières cartes ; les suivantes arrivent en approchant du bas (téléphones lents, grosses listes).
+    const key = JSON.stringify(view);
+    if (key !== shownKey) { shownKey = key; shown = PAGE; }
+    current = list;
+    $("list").innerHTML = list.slice(0, shown).map(card).join("") + (list.length > shown ? `<div id="more" aria-hidden="true"></div>` : "");
+    if (list.length > shown) moreObserver.observe($("more"));
     const empty = $("empty");
     empty.hidden = list.length > 0;
     empty.textContent = fics.length
@@ -438,6 +456,7 @@
   // ------------------------------------------------------------ fiche
 
   let detailId = null;
+  let prepTimer = 0;
   let editing = false;
 
   function openDetail(id) {
@@ -517,6 +536,9 @@
     $("detailBody").innerHTML = body;
     $("detail").hidden = false;
     if (!editing && f.summary) showSummary(f, null);
+    // Ouvrir la fiche prépare la lecture : le chapitre (traduit) sera prêt en touchant « Lire ».
+    clearTimeout(prepTimer);
+    if (!editing && f.status !== "read" && f.status !== "dropped") prepTimer = setTimeout(() => window.FanficsApp.prepareRead && window.FanficsApp.prepareRead(f), 500);
   }
 
   // Auteur favori depuis une fanfic.
@@ -789,7 +811,11 @@
 
   // ------------------------------------------------------------ événements
 
-  $("search").addEventListener("input", (e) => { view.q = e.target.value.trim(); render(); });
+  let typing = 0; // on attend une courte pause dans la frappe avant de filtrer
+  $("search").addEventListener("input", (e) => {
+    clearTimeout(typing);
+    typing = setTimeout(() => { view.q = e.target.value.trim(); render(); }, 180);
+  });
   $("fFandom").addEventListener("change", (e) => { view.fandom = e.target.value; animateNext = true; render(); });
   $("fShelf").addEventListener("change", (e) => { view.shelf = e.target.value; render(); });
   $("fSort").addEventListener("change", (e) => { view.sort = e.target.value; render(); });
@@ -874,6 +900,7 @@
       (words ? ` · ${fmt(words)} mots lus` : "") + (native ? "" : " · Mode navigateur : les infos des sites ne peuvent pas toujours être lues.");
     $("setAuto").checked = settings.autoTranslate;
     $("setLang").value = settings.lang;
+    $("setLite").value = settings.lite;
     $("menu").hidden = false;
   });
   $("setAuto").addEventListener("change", (e) => { settings.autoTranslate = e.target.checked; save(); });
@@ -928,9 +955,22 @@
     findStory,
   };
 
+  // Mode léger : « auto » l'active sur les téléphones à 2 Go de mémoire ou moins, ou 4 cœurs ou moins.
+  function applyLite() {
+    const weak = (navigator.deviceMemory && navigator.deviceMemory <= 2) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
+    document.documentElement.classList.toggle("lite", settings.lite === "on" || (settings.lite === "auto" && !!weak));
+  }
+  $("setLite").addEventListener("change", (e) => { settings.lite = e.target.value; applyLite(); save(); });
+
   load();
+  applyLite();
   render();
   // Fanfics ajoutées mais jamais lues (app fermée pendant le téléchargement).
   for (const f of fics) if (!f.fetchedAt && !f.error) enqueue(f);
   if (native) Android.ready();
+  // Au démarrage, une fois l'app affichée : prépare la fanfic qu'on lisait en dernier.
+  setTimeout(() => {
+    const last = fics.filter((f) => f.status === "reading").sort((a, b) => (b.readAt || 0) - (a.readAt || 0))[0];
+    if (last && window.FanficsApp.prepareRead) window.FanficsApp.prepareRead(last);
+  }, 2500);
 })();

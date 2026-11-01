@@ -412,9 +412,9 @@ async function test(name, fn) {
   });
 
   await test("app : recherche et filtre par fandom", async () => {
-    await app.fill("#search", "draco slow");
+    await app.fill("#search", "draco slow"); await app.waitForTimeout(260); // filtre après une pause de frappe
     assert.deepStrictEqual(await titles(), ["Le Dernier Hiver"]);
-    await app.fill("#search", "");
+    await app.fill("#search", ""); await app.waitForTimeout(260); // filtre après une pause de frappe
     await app.selectOption("#fFandom", "Harry Potter");
     assert.deepStrictEqual(await titles(), ["The Long Road Home"]);
     await app.selectOption("#fFandom", "");
@@ -431,7 +431,7 @@ async function test(name, fn) {
     const opened = await app.evaluate(() => window.__opened);
     assert.deepStrictEqual(opened, ["https://www.fanfiction.net/s/12345678/3/"]);
     await app.click("#detail [data-close]");
-    await app.waitForTimeout(300); // enregistrement différé
+    await app.waitForTimeout(600); // enregistrement différé
     const f = await app.evaluate(() => JSON.parse(window.__store).fics.find((x) => x.title === "The Long Road Home"));
     assert.strictEqual(f.status, "reading");
     assert.strictEqual(f.stars, 4);
@@ -477,8 +477,8 @@ async function test(name, fn) {
   });
 
   await test("app : retour Android ferme puis réinitialise les filtres", async () => {
-    await app.fill("#search", "zzz");
-    await app.dispatchEvent("#search", "input");
+    await app.fill("#search", "zzz"); await app.waitForTimeout(260); // filtre après une pause de frappe
+    await app.dispatchEvent("#search", "input"); await app.waitForTimeout(260);
     await app.click("#fab");
     assert.strictEqual(await app.evaluate(() => window.__back()), true);
     assert.strictEqual(await app.isHidden("#addSheet"), true);
@@ -497,7 +497,7 @@ async function test(name, fn) {
     await app.waitForSelector("#empty:not([hidden])");
     await app.evaluate((b) => { window.__inbox = b; window.__imported(); }, backup);
     assert.strictEqual((await titles()).length, 4);
-    await app.waitForTimeout(300);
+    await app.waitForTimeout(600);
     const f = await app.evaluate(() => JSON.parse(window.__store).fics.find((x) => x.title === "The Long Road Home"));
     assert.strictEqual(f.stars, 4);
   });
@@ -714,7 +714,7 @@ async function test(name, fn) {
     assert.deepStrictEqual(await app.$$eval("#sSections button", (e) => e.map((x) => x.textContent)), ["Ses histoires", "Ses favoris", "Auteurs favoris"]);
     await app.waitForSelector(".sres .t");
     assert.deepStrictEqual(await app.$$eval(".sres .t", (e) => e.map((x) => x.textContent)), ["Mon Histoire"]);
-    await app.waitForTimeout(300);
+    await app.waitForTimeout(600);
     assert.doesNotMatch(await app.textContent(".sres .ssum"), /\[FR\]/); // « French » : déjà en français, pas traduit
     await app.click("#sSections [data-sec='1']");
     await app.waitForFunction(() => document.querySelectorAll(".sres .t").length === 2);
@@ -832,6 +832,37 @@ async function test(name, fn) {
     assert.strictEqual(await app.evaluate(() => window.__back()), true);
     assert.strictEqual(await app.isVisible("#sQuery"), true);
     await app.evaluate(() => window.__back());
+  });
+
+  await test("app : ouvrir la fiche prépare le chapitre traduit -> lecture instantanée", async () => {
+    await app.evaluate(() => {
+      window.__cache = {}; // téléphone vidé de ses chapitres
+      Object.assign(window.FanficsApp.fics.find((x) => x.title === "Stars Fall"), { status: "reading", readCh: 2 });
+    });
+    await app.click("#tabs [data-tab=all]");
+    await app.click("#list .card:has-text('Stars Fall')");
+    await app.waitForFunction(() => Object.keys(window.__cache).some((k) => k.startsWith("tr:fr:ch:https://archiveofourown.org/works/555/chapters/2002")));
+    await app.evaluate(() => window.__back());
+    const before = calls.length;
+    await app.click("#list .card:has-text('Stars Fall')");
+    await app.click("#detail [data-act=read]");
+    // Déjà traduit : affiché directement en français, sans passer par l'original ni le réseau.
+    assert.match(await app.textContent("#rBody"), /\[FR\] Draco smiled, chapter 2/);
+    assert.match(await app.textContent("#rBanner"), /Traduit automatiquement/);
+    assert.deepStrictEqual(calls.slice(before).filter((u) => !u.includes("Harry%20falls")), []);
+    await app.evaluate(() => window.__back());
+  });
+
+  await test("traduction : morceaux affichés au fur et à mesure, dans l'ordre du texte", async () => {
+    const r = await app.evaluate(async () => {
+      const paras = Array.from({ length: 30 }, (_, i) => "Paragraph number " + i + " " + "words ".repeat(60));
+      const seen = [];
+      const out = await window.FanficsApp.translate.paragraphs(paras, null, (ups) => seen.push(ups.map((u) => u.i)));
+      return { chunks: seen.length, first: seen[0][0], all: out.every((t) => t.startsWith("[FR]")) };
+    });
+    assert.ok(r.chunks > 3, "plusieurs morceaux : " + r.chunks);
+    assert.strictEqual(r.first, 0);
+    assert.strictEqual(r.all, true);
   });
 
   await app.click("#tabs [data-tab=all]");

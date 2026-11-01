@@ -18,34 +18,38 @@
 
   // ------------------------------------------------------------ données
 
-  function listKey() { return "list:" + fic.url; }
+  const listKey = (f) => "list:" + f.url;
 
-  async function ensureList() {
-    const known = A.cacheGet(listKey());
-    const count = fic.chaptersTotal || fic.chapters || 0;
+  async function ensureList(f) {
+    f = f || fic;
+    const known = A.cacheGet(listKey(f));
+    const count = f.chaptersTotal || f.chapters || 0;
     if (known && known.length && known.length >= count) return known;
-    if (P.siteOf(fic.url) === "ffn") {
+    if (P.siteOf(f.url) === "ffn") {
       // FanFiction.net : adresses devinables ; on garde les titres déjà connus.
-      const base = C.initialList(fic.url, fic.title, Math.max(count, known ? known.length : 0));
+      const base = C.initialList(f.url, f.title, Math.max(count, known ? known.length : 0));
       return base.map((c, i) => (known && known[i]) || c);
     }
-    const url = C.listUrl(fic.url);
-    if (!url) return C.initialList(fic.url, fic.title, count);
-    const l = C.parseList(fic.url, await A.download(url, fic.site));
-    A.cachePut(listKey(), l);
+    const url = C.listUrl(f.url);
+    if (!url) return C.initialList(f.url, f.title, count);
+    const l = C.parseList(f.url, await A.download(url, f.site));
+    A.cachePut(listKey(f), l);
     return l;
   }
 
-  function chapterData(url) {
+  function chapterData(url, f) {
+    f = f || fic;
     const cached = A.cacheGet("ch:" + url);
     if (cached) return Promise.resolve(cached);
     if (inflight[url]) return inflight[url];
-    const ficUrl = fic.url;
+    const ficUrl = f.url;
     inflight[url] = A.download(url, P.siteOf(url), C.readySelector(url)).then((body) => {
       const r = C.parseChapter(url, body);
-      if (r.list && fic && fic.url === ficUrl) {
-        list = r.list.map((c, i) => ({ title: c.title || (list[i] && list[i].title) || "", url: c.url }));
-        A.cachePut(listKey(), list);
+      if (r.list) {
+        const old = (fic && fic.url === ficUrl && list) || A.cacheGet("list:" + ficUrl) || [];
+        const l = r.list.map((c, i) => ({ title: c.title || (old[i] && old[i].title) || "", url: c.url }));
+        A.cachePut("list:" + ficUrl, l);
+        if (fic && fic.url === ficUrl) list = l;
       }
       const d = { title: r.title, paragraphs: r.paragraphs };
       A.cachePut("ch:" + url, d);
@@ -54,14 +58,17 @@
     return inflight[url];
   }
 
-  function wantsTranslation() {
-    return A.settings.autoTranslate && !A.translate.sameLanguage(fic.language);
+  function wantsTranslation(f) {
+    f = f || fic;
+    return A.settings.autoTranslate && !A.translate.sameLanguage(f.language);
   }
 
-  function translateChapter(url, d) {
+  // onChunk([{i, t}]) : i = 0 pour le titre, i = k + 1 pour le paragraphe k.
+  function translateChapter(url, d, onChunk) {
     const parts = [d.title || "", ...d.paragraphs];
-    return A.translate.paragraphs(parts, "ch:" + url).then((t) => (t ? { title: t[0], paragraphs: t.slice(1) } : null));
+    return A.translate.paragraphs(parts, "ch:" + url, onChunk).then((t) => (t ? { title: t[0], paragraphs: t.slice(1) } : null));
   }
+  const asChapter = (t) => (t ? { title: t[0], paragraphs: t.slice(1) } : t);
 
   // ------------------------------------------------------------ affichage
 
@@ -88,7 +95,7 @@
     const body = $("rBody");
     const last = list && n >= list.length;
     body.innerHTML = `<h2>${esc(d.title || chapterTitle(n))}</h2>` +
-      d.paragraphs.map((p) => (p === "* * *" ? `<p class="sep">* * *</p>` : `<p>${esc(p)}</p>`)).join("") +
+      d.paragraphs.map((p, k) => (p === "* * *" ? `<p class="sep">* * *</p>` : `<p data-k="${k}">${esc(p)}</p>`)).join("") +
       `<div class="rend">${last ? (fic.complete ? "Fin." : "Dernier chapitre publié pour l'instant.") :
         `<button class="primary" data-r="next">Chapitre suivant ▶</button>`}</div>`;
     if (scrollTo != null) body.scrollTop = scrollTo * Math.max(0, body.scrollHeight - body.clientHeight);
@@ -113,15 +120,29 @@
   }
 
   async function translateNow(t, url, scroll) {
-    banner("Traduction en cours…");
+    banner("Traduction…");
+    const body = $("rBody");
+    let progressed = false;
+    // Texte original en attente, en grisé ; chaque paragraphe se remplace dès que sa traduction arrive.
+    body.classList.add("translating");
+    const onChunk = (ups) => {
+      if (t !== token || showOriginal) return;
+      if (!progressed) { progressed = true; banner("Traduction en cours… la suite arrive pendant ta lecture"); }
+      for (const u of ups) {
+        const el = u.i === 0 ? body.querySelector("h2") : body.querySelector(`p[data-k="${u.i - 1}"]`);
+        if (el) { if (u.i !== 0 || u.t) el.textContent = u.t; el.classList.add("tr"); }
+      }
+    };
     try {
-      const tr = await translateChapter(url, original);
+      const tr = await translateChapter(url, original, onChunk);
       if (t !== token) return;
+      body.classList.remove("translating");
       translated = tr;
-      if (tr && !showOriginal) showText(tr, scroll != null ? scroll : ratio());
+      if (tr && !showOriginal && !progressed) showText(tr, scroll != null ? scroll : ratio());
       translationBanner();
     } catch (e) {
       if (t !== token) return;
+      body.classList.remove("translating");
       banner(`Traduction impossible : ${esc(e.message)} · <button class="link" data-r="translate">Réessayer</button>`);
     }
   }
@@ -150,9 +171,16 @@
       if (t !== token) return;
       header(); // la liste a pu être complétée par le chapitre (FanFiction.net)
       original = d;
-      showText(d, scroll);
-      translationBanner();
-      if (wantsTranslation()) await translateNow(t, url, scroll);
+      const ready = wantsTranslation() ? A.translate.cached("ch:" + url) : undefined;
+      if (ready) {
+        translated = asChapter(ready);
+        showText(translated, scroll);
+        translationBanner();
+      } else {
+        showText(d, scroll);
+        translationBanner();
+        if (wantsTranslation() && ready === undefined) await translateNow(t, url, scroll);
+      }
       prefetch(t);
     } catch (e) {
       if (t !== token) return;
@@ -170,6 +198,23 @@
       const d = await chapterData(url);
       if (t === token && wantsTranslation()) await translateChapter(url, d);
     } catch (e) { /* on réessaiera en l'ouvrant */ }
+  }
+
+  // Prépare (télécharge et traduit) le chapitre où l'on reprendra une fanfic, avant même de l'ouvrir.
+  // Pas pour FanFiction.net : sa vérification anti-robot pourrait s'afficher sans qu'on ait rien demandé.
+  const preparing = new Set();
+  async function prepare(f) {
+    if (!f || f.site === "ffn" || preparing.has(f.id) || (fic && fic.id === f.id)) return;
+    preparing.add(f.id);
+    try {
+      const l = await ensureList(f);
+      const total = l.length;
+      const ch = Math.max(1, Math.min(f.readCh || (f.lastRead || 0) + 1, total));
+      const url = l[ch - 1].url;
+      const d = await chapterData(url, f);
+      if (wantsTranslation(f)) await translateChapter(url, d);
+    } catch (e) { /* on réessaiera à l'ouverture */ }
+    finally { preparing.delete(f.id); }
   }
 
   // ------------------------------------------------------------ ouverture, fermeture
@@ -260,5 +305,6 @@
   document.addEventListener("visibilitychange", () => { if (document.hidden && fic) saveScroll(); });
 
   A.backHandlers.push(close);
+  A.prepareRead = prepare;
   A.openReader = open;
 })();

@@ -951,6 +951,13 @@ async function test(name, fn) {
     await app.press("#sQuery", "Enter");
     await app.waitForSelector(".sres .t");
     assert.deepStrictEqual((await app.$$eval(".sres .t", (e) => e.map((x) => x.textContent))).length, 2);
+    // « Plus de résultats » : la page suivante n'apporte rien d'exact -> aucune carte ajoutée.
+    const before = await app.$$eval(".sres", (e) => e.length);
+    if (await app.$("[data-s=more]")) {
+      await app.click("[data-s=more]");
+      await app.waitForFunction(() => !document.querySelector(".spinner"));
+      assert.strictEqual(await app.$$eval(".sres", (e) => e.length), before);
+    }
     await app.fill("#sQuery", "Luffy dxd sanji");
     await app.press("#sQuery", "Enter");
     await app.waitForFunction(() => /Résultats proches/.test(document.getElementById("sResults").textContent));

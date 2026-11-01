@@ -187,7 +187,7 @@
       let r;
       if (state.mode === "list") r = await state.list.sections[state.list.section].load(state.page);
       else {
-        if (state.site === "wattpad") r = await wattpadPrecise(t);
+        if (state.site === "wattpad") r = await wattpadPrecise(t, more);
         else {
           const url = S.url(state.site, state.q, opts(), state.page);
           r = S.parse(state.site, await A.download(url, state.site, S.readySelector(state.site)));
@@ -228,7 +228,7 @@
   }
 
   // Plusieurs requêtes en parallèle (texte, tags), fusion, puis filtrage strict et tri ici.
-  async function wattpadPrecise(t) {
+  async function wattpadPrecise(t, more) {
     const f = { language: $("wLang").value, complete: $("wComplete").checked, noMature: !$("wMature").checked };
     const queries = S.wattpadQueries(state.q);
     // Texte : adresse du site + ancienne adresse (v3, celle qui a déjà marché) ; tags : v4/stories.
@@ -255,6 +255,8 @@
     const exact = S.refine(raw, state.q, f);
     const filtered = f.stats.filtered || 0;
     const words = S.parseQuery(state.q).words.length;
+    // Pages suivantes : uniquement ce qui contient tous les mots (jamais de « proches » mêlés aux bons).
+    if (more) return { results: exact, next };
     const near = !exact.length && words > 1 ? S.refine(raw, state.q, f, Math.ceil(words / 2)) : [];
     const excl = filtered ? ` ${filtered} écartées par tes filtres (langue, terminées, mature).` : "";
     state.note = exact.length ? `Wattpad : ${raw.length} reçues, ${exact.length} contiennent tous les mots.${excl}`

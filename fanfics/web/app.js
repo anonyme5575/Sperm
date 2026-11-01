@@ -51,6 +51,7 @@
     const json = JSON.stringify({ version: 1, fics, authors, settings });
     if (native) Android.save(json);
     else localStorage.setItem("fanfics", json);
+    if (window.FanficsApp && window.FanficsApp.onSaved) window.FanficsApp.onSaved();
   }
   // L'app passe en arrière-plan : on écrit tout de suite, elle peut être tuée ensuite.
   document.addEventListener("visibilitychange", () => {
@@ -71,14 +72,19 @@
   function nativeCall(method, url, ready) {
     return new Promise((resolve, reject) => {
       const id = "f" + ++seq;
+      const call = () => {
+        if (method === "fetchBrowser") Android.fetchBrowser(id, url, ready || "");
+        else if (method === "fetch") Android.fetch(id, url);
+        else if (url !== undefined) Android[method](id, url); // ex. syncWrite(id, texte)
+        else Android[method](id);
+      };
       pending[id] = (r) => {
         if (r.ok) return resolve(r.body);
         const e = new Error(r.error || "Erreur " + r.status);
         e.login = !!r.login; // page réservée aux membres connectés
         reject(e);
       };
-      if (method === "fetchBrowser") Android.fetchBrowser(id, url, ready || "");
-      else Android.fetch(id, url);
+      call();
     });
   }
 
@@ -433,6 +439,7 @@
   }, { rootMargin: "800px" });
   function render() {
     cardIndex = 0;
+    $("btnAccounts").classList.toggle("dot", !!(settings.news && settings.news.length));
     $("list").classList.toggle("anim", animateNext);
     animateNext = false;
     renderHeader();
@@ -644,7 +651,7 @@
       case "read": closeSheets(); window.FanficsApp.openReader(f.id); return;
       case "favAuthor": withAuthor(f, (p) => {
         const i = authors.findIndex((a) => a.site === p.site && a.id === p.id);
-        if (i >= 0) { authors.splice(i, 1); toast(`${p.name} retiré de tes auteurs favoris.`); }
+        if (i >= 0) { markAuthorDeleted(authors[i]); authors.splice(i, 1); toast(`${p.name} retiré de tes auteurs favoris.`); }
         else { addAuthor(p); toast(`${p.name} ajouté à tes auteurs favoris ★`); }
         save(); render();
         if (detailId === f.id) openDetail(f.id);
@@ -679,6 +686,7 @@
       case "delete":
         if (!confirm(`Supprimer « ${f.title} » de ta liste ?`)) return;
         fics = fics.filter((x) => x !== f);
+        if (window.FanficsApp.markDeleted) window.FanficsApp.markDeleted(P.storyKey(f.url), f.mtime);
         save();
         render();
         closeSheets();
@@ -832,6 +840,7 @@
       if (b && b.dataset.au === "remove") {
         if (!confirm(`Retirer ${a.name} de tes auteurs favoris ?`)) return;
         authors = authors.filter((x) => x !== a);
+        markAuthorDeleted(a);
         save(); render();
       } else window.FanficsApp.openAuthor(a);
       return;
@@ -936,6 +945,17 @@
     return fic;
   }
 
+  function markAuthorDeleted(a) {
+    if (window.FanficsApp.markDeleted) window.FanficsApp.markDeleted("a:" + a.site + ":" + a.id, a.mtime);
+  }
+
+  // Remplace toute la liste (synchro) ; garde l'affichage à jour.
+  function replaceData(nf, na) {
+    fics = nf;
+    authors = na;
+    render();
+  }
+
   function addAuthor(a) {
     if (!a || !a.site || !a.id || authors.some((x) => x.site === a.site && x.id === a.id)) return false;
     authors.push({ site: a.site, id: a.id, name: a.name || a.id, url: a.url, addedAt: a.addedAt || Date.now() });
@@ -944,13 +964,13 @@
   }
 
   window.FanficsApp = {
-    addLinks, addFromInfo, importData, download, cacheGet, cachePut, save, flush, render, toast, esc, fmt,
+    addLinks, addFromInfo, importData, download, nativeCall, cacheGet, cachePut, save, flush, render, toast, esc, fmt,
     setLastRead, openDetail, backHandlers, settings, native,
     get fics() { return fics; },
     get authors() { return authors; },
     cover, avatar, hue, isFavAuthor,
     plural: (n, word) => (n > 1 ? word : word.replace(/s$/, "")), // « 1 histoire », « 13 abonnés »
-    addAuthor, view, showProgress,
+    addAuthor, markAuthorDeleted, replaceData, view, showProgress,
     find: (id) => fics.find((f) => f.id === id),
     findStory,
   };

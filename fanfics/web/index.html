@@ -82,6 +82,11 @@
     <button class="item" id="mExport">Sauvegarder ma liste (fichier)</button>
     <button class="item" id="mImport">Restaurer une sauvegarde</button>
     <button class="item" id="mRefreshAll">Relire les infos de toutes les fanfics</button>
+    <label class="item check"><input type="checkbox" id="setNotify"> 🔔 Me prévenir des nouveaux chapitres et des nouvelles histoires de mes auteurs</label>
+    <button class="item" id="mCheckNow">Vérifier les nouveautés maintenant</button>
+    <div class="sec">Synchronisation Google Drive</div>
+    <div id="syncBox"></div>
+    <div class="sec">Lecture</div>
     <label class="item check"><input type="checkbox" id="setAuto"> Traduire automatiquement les chapitres et résumés</label>
     <label class="row">Traduire en
       <select id="setLang">
@@ -172,5 +177,6 @@
 <script src="reader.js"></script>
 <script src="search.js"></script>
 <script src="accounts.js"></script>
+<script src="sync.js"></script>
 </body>
 </html>

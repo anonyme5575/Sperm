@@ -50,7 +50,8 @@ import java.util.regex.Pattern;
  * recevoir les liens partagés depuis une autre app, sauvegarder et restaurer.
  */
 public class MainActivity extends Activity {
-    private static final int REQ_EXPORT = 1, REQ_IMPORT = 2;
+    private static final int REQ_EXPORT = 1, REQ_IMPORT = 2, REQ_SYNC_NEW = 3, REQ_SYNC_OPEN = 4;
+    private static final String PREFS = "fanfics";
     private static final int MAX_BYTES = 6 * 1024 * 1024;
     private static final String UA = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 "
             + "(KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36 MesFanfics/1.0";
@@ -129,6 +130,13 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        // Retour dans l'app (ex. toucher une notification) : la page récupère les nouveautés.
+        if (ready) web.evaluateJavascript("window.__resume && window.__resume()", null);
+    }
+
+    @Override
     protected void onDestroy() {
         pool.shutdownNow();
         super.onDestroy();
@@ -149,6 +157,18 @@ public class MainActivity extends Activity {
         super.onActivityResult(req, res, data);
         if (res != RESULT_OK || data == null || data.getData() == null) return;
         Uri uri = data.getData();
+        if (req == REQ_SYNC_NEW || req == REQ_SYNC_OPEN) {
+            try {
+                getContentResolver().takePersistableUriPermission(uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            } catch (Exception e) {
+                Toast.makeText(this, "Ce fichier ne peut pas rester lié : choisis-le dans Drive.", Toast.LENGTH_LONG).show();
+                return;
+            }
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("syncUri", uri.toString()).apply();
+            js("window.__syncLinked && window.__syncLinked(" + (req == REQ_SYNC_NEW) + ")");
+            return;
+        }
         if (req == REQ_EXPORT && pendingExport != null) {
             try (OutputStream out = getContentResolver().openOutputStream(uri, "wt")) {
                 out.write(pendingExport.getBytes(StandardCharsets.UTF_8));
@@ -168,6 +188,25 @@ public class MainActivity extends Activity {
 
     private void js(final String code) {
         ui.post(new Runnable() { @Override public void run() { web.evaluateJavascript(code, null); } });
+    }
+
+    private Uri syncUri() {
+        String s = getSharedPreferences(PREFS, MODE_PRIVATE).getString("syncUri", null);
+        return s == null ? null : Uri.parse(s);
+    }
+
+    /** Nom affiché du fichier de synchronisation (ex. « mes-fanfics-sync.json »), ou "" s'il n'y en a pas. */
+    private String syncName(Uri uri) {
+        try (android.database.Cursor c = getContentResolver().query(uri,
+                new String[]{android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (c != null && c.moveToFirst()) return c.getString(0);
+        } catch (Exception ignored) { }
+        return uri.getLastPathSegment();
+    }
+
+    private void finish(final String id, String json) {
+        results.put(id, json);
+        js("window.__fetched(" + JSONObject.quote(id) + ")");
     }
 
     private File cacheDir() {
@@ -342,8 +381,11 @@ public class MainActivity extends Activity {
         if (job == null) {
             bId = null;
             if (browser != null) browser.loadUrl("about:blank");
+            ui.removeCallbacks(dropBrowser);
+            ui.postDelayed(dropBrowser, 60000);
             return;
         }
+        ui.removeCallbacks(dropBrowser);
         ensureBrowser();
         bId = job[0];
         bProbe = probe(job[2]);
@@ -362,6 +404,21 @@ public class MainActivity extends Activity {
         web.evaluateJavascript("window.__fetched(" + JSONObject.quote(id) + ")", null);
         nextBrowser();
     }
+
+    /** Le navigateur caché pèse des dizaines de Mo : on le libère après une minute sans usage. */
+    private final Runnable dropBrowser = new Runnable() {
+        @Override
+        public void run() {
+            if (browser == null || bId != null || loginMode || !bQueue.isEmpty()) return;
+            root.removeView(browserBox);
+            browser.destroy();
+            browser = null;
+            browserBox = null;
+            browserBar = null;
+            browserMsg = null;
+            browserClose = null;
+        }
+    };
 
     private void ensureBrowser() {
         if (browser != null) return;
@@ -530,6 +587,103 @@ public class MainActivity extends Activity {
         public void cacheClear() {
             File[] all = cacheDir().listFiles();
             if (all != null) for (File f : all) f.delete();
+        }
+
+        // ---- nouveaux chapitres
+
+        @JavascriptInterface
+        public void setNotify(boolean on) {
+            Updates.schedule(MainActivity.this, on);
+        }
+
+        /** Nouveautés trouvées en arrière-plan depuis la dernière ouverture (JSON), puis effacées. */
+        @JavascriptInterface
+        public String takeUpdates() {
+            return Updates.takePending(MainActivity.this).toString();
+        }
+
+        /** Vérifie tout de suite (bouton des réglages) ; répond par __fetched(id) avec le nombre de nouveautés. */
+        @JavascriptInterface
+        public void checkUpdates(final String id) {
+            pool.execute(new Runnable() { @Override public void run() {
+                String out;
+                try { out = "{\"ok\":true,\"body\":\"" + Updates.check(MainActivity.this) + "\"}"; }
+                catch (Exception e) { out = error("Vérification impossible : " + e.getMessage()); }
+                finish(id, out);
+            }});
+        }
+
+        // ---- synchronisation par un fichier sur Google Drive (sélecteur de fichiers d'Android)
+
+        @JavascriptInterface
+        public void syncCreate(final String name) {
+            ui.post(new Runnable() { @Override public void run() {
+                Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                        .setType("application/json").putExtra(Intent.EXTRA_TITLE, name)
+                        .addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                startActivityForResult(i, REQ_SYNC_NEW);
+            }});
+        }
+
+        @JavascriptInterface
+        public void syncOpen() {
+            ui.post(new Runnable() { @Override public void run() {
+                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+                        .addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                startActivityForResult(i, REQ_SYNC_OPEN);
+            }});
+        }
+
+        @JavascriptInterface
+        public String syncName() {
+            Uri u = syncUri();
+            return u == null ? "" : MainActivity.this.syncName(u);
+        }
+
+        @JavascriptInterface
+        public void syncUnlink() {
+            Uri u = syncUri();
+            if (u != null) try {
+                getContentResolver().releasePersistableUriPermission(u,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            } catch (Exception ignored) { }
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().remove("syncUri").apply();
+        }
+
+        @JavascriptInterface
+        public void syncRead(final String id) {
+            pool.execute(new Runnable() { @Override public void run() {
+                Uri u = syncUri();
+                if (u == null) { finish(id, error("Aucun fichier lié.")); return; }
+                try (InputStream in = getContentResolver().openInputStream(u)) {
+                    JSONObject o = new JSONObject();
+                    o.put("ok", true);
+                    o.put("body", in == null ? "" : new String(readAll(in, 50 * 1024 * 1024), StandardCharsets.UTF_8));
+                    finish(id, o.toString());
+                } catch (Exception e) {
+                    finish(id, error("Lecture du fichier Drive impossible : " + e.getMessage()));
+                }
+            }});
+        }
+
+        @JavascriptInterface
+        public void syncWrite(final String id, final String json) {
+            pool.execute(new Runnable() { @Override public void run() {
+                Uri u = syncUri();
+                if (u == null) { finish(id, error("Aucun fichier lié.")); return; }
+                byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
+                for (String mode : new String[]{"wt", "w"}) { // certains fournisseurs refusent "wt"
+                    try (OutputStream out = getContentResolver().openOutputStream(u, mode)) {
+                        out.write(bytes);
+                        finish(id, "{\"ok\":true,\"body\":\"\"}");
+                        return;
+                    } catch (Exception e) {
+                        if (mode.equals("w")) finish(id, error("Écriture du fichier Drive impossible : " + e.getMessage()));
+                    }
+                }
+            }});
         }
 
         @JavascriptInterface

@@ -91,6 +91,21 @@
 
   const card = (r, i) => (r.kind === "login" ? loginCard(r, i) : r.kind === "author" || r.kind === "account" ? personCard(r, i) : storyCard(r, i));
 
+  // Nouvelles histoires de mes auteurs, trouvées par la vérification en arrière-plan.
+  function newsHtml() {
+    const news = A.settings.news || [];
+    if (!news.length) return "";
+    return `<div class="sechead"><b>🆕 Nouveautés de tes auteurs</b><span>${news.length}</span><button class="link" data-x="clear">Tout effacer</button></div>` +
+      news.map((x, k) => `<article class="card sres news" data-n="${k}">
+        <div class="crow">${A.cover(x, "sm")}<div class="cbody">
+          <div class="t">${esc(x.title)}</div>
+          <div class="a">par ${esc(x.author)} · ${esc(P.SITES[x.site] || "")}</div>
+          <div class="st">Nouvelle histoire · ${new Date(x.t).toLocaleDateString("fr-FR")}</div>
+        </div></div>
+        <div class="actions"><button class="ghost" data-x="dismiss">✕</button><button class="ghost" data-x="add">+ Ajouter</button><button class="primary" data-x="read">📖 Lire</button></div>
+      </article>`).join("");
+  }
+
   function emptyText() {
     if (state.mode === "list") return state.list.sections[state.list.section].empty || "Rien de public ici.";
     if (state.mode === "accounts") return state.q ? `Aucun compte « ${state.q} » trouvé.` : "";
@@ -106,11 +121,11 @@
     else if (!state.results.some((r) => r.kind !== "login") && emptyText()) html += `<p class="rwait">${esc(emptyText())}</p>`;
     else if (state.next) html += `<div class="actions" style="justify-content:center"><button class="ghost" data-s="more">Plus de résultats</button></div>`;
     if (state.mode === "accounts" && !state.q && !state.loading) {
-      // Écran d'accueil des auteurs : mes auteurs favoris, puis la recherche par pseudo.
-      html = state.results.length
+      // Écran d'accueil des auteurs : nouveautés, mes auteurs favoris, puis la recherche par pseudo.
+      html = newsHtml() + (state.results.length
         ? `<div class="sechead"><b>★ Mes auteurs favoris</b><span>${state.results.length}</span></div>` + state.results.map(card).join("") +
           `<p class="hint tip">Pour en ajouter : tape un pseudo ci-dessus, ou touche « ☆ Auteur favori » dans la fiche d'une fanfic.</p>`
-        : `<div class="welcome"><div class="big">⭐</div><b>Tes auteurs favoris</b><p>Touche « ☆ Auteur favori » dans la fiche d'une fanfic, ou tape un pseudo ci-dessus : l'app le cherche sur AO3, FanFiction.net et Wattpad et te montre tout ce qui est public (histoires, favoris, marque-pages, auteurs suivis).</p></div>`;
+        : `<div class="welcome"><div class="big">⭐</div><b>Tes auteurs favoris</b><p>Touche « ☆ Auteur favori » dans la fiche d'une fanfic, ou tape un pseudo ci-dessus : l'app le cherche sur AO3, FanFiction.net et Wattpad et te montre tout ce qui est public (histoires, favoris, marque-pages, auteurs suivis).</p></div>`);
     } else if (state.mode === "stories" && !state.q && !state.results.length && !state.loading) {
       html = `<div class="welcome"><div class="big">✨</div><b>Trouve ta prochaine fanfic</b><p>Un titre, un fandom, un personnage, un couple ou un tag.<br>Ex. « Drarry slow burn », « Naruto », « enemies to lovers ».</p></div>`;
     }
@@ -308,6 +323,25 @@
   for (const id of ["sLang", "sSort", "sComplete"]) $(id).addEventListener("change", () => { if (state.q) run(false); });
 
   $("sResults").addEventListener("click", (e) => {
+    const x = e.target.closest("[data-x]");
+    if (x) {
+      const news = A.settings.news || [];
+      if (x.dataset.x === "clear") news.length = 0;
+      else {
+        const k = +x.closest("[data-n]").dataset.n;
+        const item = news[k];
+        news.splice(k, 1);
+        if (x.dataset.x !== "dismiss") {
+          A.addLinks(item.url, "toread", "");
+          const f = A.findStory(item.url);
+          if (x.dataset.x === "read" && f) A.openReader(f.id);
+        }
+      }
+      A.save();
+      A.render(); // pastille du bouton « Auteurs »
+      render();
+      return;
+    }
     const b = e.target.closest("[data-s]");
     if (!b) return;
     if (b.dataset.s === "more") return run(true);

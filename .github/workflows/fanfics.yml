@@ -30,6 +30,11 @@ jobs:
           distribution: temurin
           java-version: "21"
       - run: fanfics/android/build.sh
+      - name: Test Java (vérification en arrière-plan)
+        run: |
+          mkdir -p /tmp/t
+          javac -nowarn -cp fanfics/android/build/classes:android/.tools/android.jar -d /tmp/t fanfics/tests/java/com/fanfics/app/UpdatesTest.java
+          java -cp /tmp/t:fanfics/android/build/classes:android/.tools/android.jar com.fanfics.app.UpdatesTest fanfics/tests/pages
       - uses: actions/upload-artifact@v4
         with:
           name: mes-fanfics-apk

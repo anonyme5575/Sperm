@@ -8,8 +8,8 @@ ROOT="$(cd "$A/../.." && pwd)"
 TOOLS_DIR="$ROOT/android"
 T="$TOOLS_DIR/.tools"
 OUT="$A/build"
-VERSION_CODE="${VERSION_CODE:-9}"
-VERSION_NAME="${VERSION_NAME:-3.3}"
+VERSION_CODE="${VERSION_CODE:-10}"
+VERSION_NAME="${VERSION_NAME:-4.0}"
 
 [ -x "$T/aapt2" ] && [ -s "$T/signer.jar" ] || "$TOOLS_DIR/fetch-tools.sh"
 

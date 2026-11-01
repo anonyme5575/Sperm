@@ -3,6 +3,9 @@
     package="com.fanfics.app">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Vérification des nouveaux chapitres en arrière-plan, reprise après redémarrage, notifications. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- allowBackup : la liste (files/fanfics.json) suit la sauvegarde Google du téléphone. -->
     <application
@@ -28,5 +31,9 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+        <service
+            android:name=".Updates"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
     </application>
 </manifest>

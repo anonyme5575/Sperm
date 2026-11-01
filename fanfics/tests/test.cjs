@@ -358,6 +358,17 @@ async function test(name, fn) {
       ready: () => {},
       open: (u) => window.__opened.push(u),
       login: (u) => { window.__login = u; },
+      // Nouveautés trouvées en arrière-plan.
+      setNotify: (on) => { window.__notify = on; },
+      takeUpdates: () => { const u = JSON.stringify(window.__updates || []); window.__updates = []; return u; },
+      checkUpdates: (id) => { results[id] = JSON.stringify({ ok: true, body: String((window.__updates || []).length) }); setTimeout(() => window.__fetched(id)); },
+      // Fichier de synchro sur « Drive » (en mémoire).
+      syncName: () => (window.__syncLinked2 ? "mes-fanfics-synchro.json" : ""),
+      syncCreate: () => { window.__syncLinked2 = true; window.__syncFile = ""; setTimeout(() => window.__syncLinked(true)); },
+      syncOpen: () => { window.__syncLinked2 = true; setTimeout(() => window.__syncLinked(false)); },
+      syncUnlink: () => { window.__syncLinked2 = false; },
+      syncRead: (id) => { results[id] = JSON.stringify({ ok: true, body: window.__syncFile || "" }); setTimeout(() => window.__fetched(id)); },
+      syncWrite: (id, json) => { window.__syncFile = json; window.__syncWrites = (window.__syncWrites || 0) + 1; results[id] = JSON.stringify({ ok: true, body: "" }); setTimeout(() => window.__fetched(id)); },
       exportFile: (n, j) => { window.__exported = j; },
       importFile: () => {},
     };
@@ -467,7 +478,7 @@ async function test(name, fn) {
     await app.click("#list .card");
     await app.click("[data-act=seen]");
     await app.click("#detail [data-close]");
-    assert.strictEqual(await app.$("#tabs [data-tab=new]"), null);
+    assert.ok(!(await app.$("#tabs [data-tab=new]")), "ne devrait pas exister : " + "#tabs [data-tab=new]");
   });
 
   await test("app : lien partagé depuis une autre app", async () => {
@@ -497,7 +508,7 @@ async function test(name, fn) {
     await app.waitForSelector("#empty:not([hidden])");
     await app.evaluate((b) => { window.__inbox = b; window.__imported(); }, backup);
     assert.strictEqual((await titles()).length, 4);
-    await app.waitForTimeout(600);
+    await app.waitForFunction(() => window.__store && JSON.parse(window.__store).fics.length === 4);
     const f = await app.evaluate(() => JSON.parse(window.__store).fics.find((x) => x.title === "The Long Road Home"));
     assert.strictEqual(f.stars, 4);
   });
@@ -699,7 +710,7 @@ async function test(name, fn) {
       { ok: true, status: 200, body: page("ffn-writers.html").replace("/u/999/Moi\">Moi", "/u/777/Zed\">Zed") };
     await app.evaluate(() => window.__loginDone());
     await app.waitForFunction(() => document.querySelectorAll(".person:not(.login)").length === 1 && !document.querySelector(".spinner"));
-    assert.strictEqual(await app.$(".login"), null);
+    assert.ok(!(await app.$(".login")), "ne devrait pas exister : " + ".login");
     assert.match(await app.textContent(".person"), /Zed/);
     // Retour à la recherche « Moi » pour la suite.
     await app.fill("#sQuery", "Moi");
@@ -826,7 +837,7 @@ async function test(name, fn) {
     await app.press("#sQuery", "Enter");
     await app.waitForSelector(".sres");
     assert.ok(await app.$(".sres[data-i='0'] .fav-mini")); // Wren est favori
-    assert.strictEqual(await app.$(".sres[data-i='1'] .fav-mini"), null);
+    assert.ok(!(await app.$(".sres[data-i='1'] .fav-mini")), "ne devrait pas exister : " + ".sres[data-i='1'] .fav-mini");
     await app.click(".sres[data-i='0'] [data-s=author]");
     await app.waitForFunction(() => document.getElementById("sTitle").textContent === "Wren");
     assert.strictEqual(await app.evaluate(() => window.__back()), true);
@@ -863,6 +874,97 @@ async function test(name, fn) {
     assert.ok(r.chunks > 3, "plusieurs morceaux : " + r.chunks);
     assert.strictEqual(r.first, 0);
     assert.strictEqual(r.all, true);
+  });
+
+  await test("app : nouveautés trouvées en arrière-plan (chapitres, nouvelle histoire)", async () => {
+    await app.evaluate(() => {
+      window.__updates = [
+        { kind: "chapters", site: "ao3", url: "https://archiveofourown.org/works/123", title: "Le Dernier Hiver", author: "Plume", chapters: 16, added: 2, t: Date.now() },
+        { kind: "story", site: "ao3", url: "https://archiveofourown.org/works/9999", title: "Une Nouvelle", author: "Wren", chapters: 1, added: 0, t: Date.now() },
+      ];
+      window.__resume();
+    });
+    const f = await app.evaluate(() => window.FanficsApp.fics.find((x) => x.title === "Le Dernier Hiver"));
+    assert.strictEqual(f.chapters, 16);
+    assert.ok(f.newChapters >= 2);
+    assert.match(await app.textContent("#toast"), /1 fanfic avec de nouveaux chapitres · 1 nouveauté de tes auteurs/);
+    assert.strictEqual(await app.getAttribute("#tabs .on", "data-tab"), "new");
+    assert.ok(await app.$("#btnAccounts.dot"));
+    await app.click("#btnAccounts");
+    assert.match(await app.textContent("#sResults .sechead"), /Nouveautés de tes auteurs/);
+    assert.match(await app.textContent(".news"), /Une Nouvelle[\s\S]*par Wren/);
+    await app.click(".news [data-x=dismiss]");
+    assert.ok(!(await app.$(".news")), "ne devrait pas exister : " + ".news");
+    assert.ok(!(await app.$("#btnAccounts.dot")), "ne devrait pas exister : " + "#btnAccounts.dot");
+    await app.evaluate(() => window.__back());
+  });
+
+  await test("app : réglage des notifications", async () => {
+    assert.strictEqual(await app.evaluate(() => window.__notify), true); // planifiées au démarrage
+    await app.click("#btnMenu");
+    assert.strictEqual(await app.isChecked("#setNotify"), true);
+    await app.uncheck("#setNotify");
+    assert.strictEqual(await app.evaluate(() => window.__notify), false);
+    await app.check("#setNotify");
+    await app.click("#mCheckNow");
+    await app.waitForFunction(() => /Rien de nouveau/.test(document.getElementById("toast").textContent));
+    await app.click("#menu [data-close]");
+  });
+
+  await test("synchro Drive : lier un fichier envoie toute la liste", async () => {
+    await app.click("#btnMenu");
+    await app.click("[data-sync=create]");
+    await app.waitForFunction(() => window.__syncFile && /Synchronisé/.test(document.getElementById("toast").textContent));
+    const file = JSON.parse(await app.evaluate(() => window.__syncFile));
+    const n = await app.evaluate(() => window.FanficsApp.fics.length);
+    assert.strictEqual(file.app, "mes-fanfics");
+    assert.strictEqual(file.fics.length, n);
+    assert.ok(file.fics.every((f) => f.mtime > 0));
+    assert.ok(file.authors.length >= 4);
+    assert.match(await app.textContent("#syncBox"), /mes-fanfics-synchro\.json/);
+    await app.click("#menu [data-close]");
+  });
+
+  await test("synchro Drive : changements de l'autre téléphone reçus, conflit = le plus récent gagne", async () => {
+    await app.evaluate(() => {
+      const d = JSON.parse(window.__syncFile);
+      const later = Date.now() + 60000;
+      // L'autre téléphone a pris des notes, ajouté une fanfic et supprimé un auteur.
+      const f = d.fics.find((x) => x.title === "Moonlight");
+      Object.assign(f, { notes: "Lu sur la tablette", lastRead: 7, mtime: later });
+      d.fics.push({ id: "zz", url: "https://archiveofourown.org/works/4242", site: "ao3", title: "Venue d'ailleurs", author: "X", fandoms: [], status: "toread", mtime: later, addedAt: later });
+      d.authors = d.authors.filter((a) => a.name !== "Wren");
+      d.deleted["a:ao3:Wren"] = later;
+      // Ici, sur ce téléphone, une modification plus ancienne de la même fanfic : elle doit perdre.
+      window.__syncFile = JSON.stringify(d);
+    });
+    await app.click("#btnMenu");
+    await app.click("[data-sync=now]");
+    await app.waitForFunction(() => /reçue/.test(document.getElementById("toast").textContent));
+    const m = await app.evaluate(() => window.FanficsApp.fics.find((x) => x.title === "Moonlight"));
+    assert.strictEqual(m.notes, "Lu sur la tablette");
+    assert.strictEqual(m.lastRead, 7);
+    assert.ok(await app.evaluate(() => window.FanficsApp.fics.some((x) => x.title === "Venue d'ailleurs")));
+    assert.ok(!(await app.evaluate(() => window.FanficsApp.authors.some((a) => a.name === "Wren"))));
+    await app.click("#menu [data-close]");
+  });
+
+  await test("synchro Drive : une fanfic supprimée ici ne revient pas de l'autre téléphone", async () => {
+    await app.click("#tabs [data-tab=all]");
+    await app.click("#list .card:has-text('Venue d')");
+    await app.click("#detail [data-act=delete]");
+    await app.evaluate(() => window.FanficsApp.sync.syncNow(true));
+    await app.waitForFunction(() => !JSON.parse(window.__syncFile).fics.some((x) => x.title === "Venue d'ailleurs"));
+    const d = JSON.parse(await app.evaluate(() => window.__syncFile));
+    assert.ok(d.deleted["ao3:works:4242"] > 0);
+    // Une 2e synchro (l'autre téléphone a encore l'ancienne copie) ne la fait pas réapparaître.
+    await app.evaluate(() => {
+      const d = JSON.parse(window.__syncFile);
+      d.fics.push({ id: "zz", url: "https://archiveofourown.org/works/4242", site: "ao3", title: "Venue d'ailleurs", mtime: Date.now() - 3600000 });
+      window.__syncFile = JSON.stringify(d);
+      return window.FanficsApp.sync.syncNow(true);
+    });
+    assert.ok(!(await app.evaluate(() => window.FanficsApp.fics.some((x) => x.title === "Venue d'ailleurs"))));
   });
 
   await app.click("#tabs [data-tab=all]");

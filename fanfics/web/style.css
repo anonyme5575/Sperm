@@ -310,3 +310,6 @@ dl.meta dd { margin: 0; word-break: break-word; }
 /* Traduction progressive : l'original en attente est grisé, chaque paragraphe s'éclaire en arrivant. */
 #rBody.translating p[data-k]:not(.tr) { opacity: .4; }
 #rBody p[data-k] { transition: opacity .25s; }
+#bottomNav button { position: relative; }
+#bottomNav button.dot::after { content: ""; position: absolute; top: 4px; left: calc(50% + 8px); width: 9px; height: 9px; border-radius: 50%; background: var(--pink); border: 2px solid #14111c; }
+.card.news .st { color: var(--pink); }

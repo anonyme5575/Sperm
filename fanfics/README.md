@@ -35,6 +35,43 @@ App Android pour ranger les fanfics que tu aimes à partir de leurs liens.
 - **Découvrir** : chercher des histoires. **Comptes** : chercher un pseudo. **+** : ajouter des liens. **Réglages** : traduction, sauvegarde, comptes.
 - Lecteur : trois ambiances (🌙 nuit, ☕ sépia, ☀️ papier), barre de progression, toucher le texte pour lire en plein écran.
 
+## Notifications : nouveaux chapitres, nouvelles histoires
+
+Environ toutes les 4 heures, quand il y a du réseau, l'app vérifie en arrière-plan (sans s'ouvrir) :
+- **tes auteurs favoris AO3 et Wattpad** : nouvelle histoire publiée, ou nouveaux chapitres sur leurs histoires ;
+- **tes fanfics « En cours » AO3 et Wattpad** pas encore terminées.
+
+Tu reçois une notification ; en ouvrant l'app, les fanfics concernées passent dans l'onglet « Nouveaux chapitres » et les nouvelles histoires apparaissent en haut de l'écran **Auteurs** (pastille rose sur le bouton). Réglages : 🔔 activer ou couper, **Vérifier les nouveautés maintenant**.
+
+Limites :
+- **FanFiction.net** n'est pas vérifié en arrière-plan : sa protection anti-robot exige un navigateur. Le bouton ⟳ de la bibliothèque le vérifie, app ouverte.
+- La première vérification d'un auteur sert de point de départ : elle ne notifie rien.
+- Sur MIUI (Xiaomi), autorise l'app à tourner en arrière-plan : **Paramètres > Applications > Mes Fanfics > Économiseur de batterie > Aucune restriction**, et **Démarrage automatique**. Sinon MIUI peut bloquer les vérifications.
+- Android 13 et plus : accepte la demande d'autorisation des notifications au premier lancement.
+
+## Synchronisation avec ton compte Google (Google Drive)
+
+Réglages > **Synchronisation Google Drive** :
+1. Sur le premier téléphone : **Créer le fichier sur Google Drive**. Dans le sélecteur qui s'ouvre, choisis **Drive** (menu ☰), puis Enregistrer.
+2. Sur l'autre téléphone : installe l'app, puis **J'ai déjà un fichier (autre téléphone)** et choisis `mes-fanfics-synchro.json` dans Drive.
+
+Ensuite tout se synchronise seul : fanfics, statuts, notes, étoiles, position de lecture, auteurs favoris, comptes. Synchro à l'ouverture de l'app, 20 s après une modification, et quand tu quittes l'app. Si une même fanfic a été modifiée sur les deux téléphones, la modification la plus récente gagne ; une fanfic supprimée sur un téléphone ne revient pas depuis l'autre.
+
+Il faut l'app **Google Drive** installée sur les deux téléphones. Drive transmet le fichier avec un petit délai (quelques secondes à quelques minutes selon le réseau) : si un changement n'apparaît pas, touche **Synchroniser** un peu plus tard. Les chapitres gardés pour la lecture hors ligne ne sont pas synchronisés (ils se retéléchargent).
+
+## Léger et rapide, même sur un petit téléphone
+
+- APK d'environ 80 Ko, aucune bibliothèque externe.
+- Avec 2 000 fanfics sur un téléphone lent (processeur simulé 6 fois plus lent) : démarrage 0,9 s, changement d'onglet 43 ms. La liste n'affiche que ce qui est à l'écran.
+- **Mode léger** (Réglages) : sans animations ni ombres ; activé automatiquement sur les téléphones à 2 Go de mémoire ou 4 cœurs.
+- Le navigateur caché (FanFiction.net) est libéré après une minute sans usage.
+- La vérification en arrière-plan n'utilise pas de navigateur : quelques requêtes légères, puis l'app se rendort.
+
+## Traduction quasi instantanée
+
+- Le haut du chapitre arrive traduit en premier (une fraction de seconde), la suite remplace le texte grisé pendant que tu lis.
+- Le chapitre à reprendre est traduit à l'avance : quand tu ouvres la fiche d'une fanfic, au lancement de l'app pour ta dernière lecture, et pour le chapitre suivant pendant que tu lis. Déjà traduit, il s'affiche directement en français, même hors ligne.
+
 ## Mes auteurs favoris
 
 - Dans la fiche d'une fanfic : **☆ Auteur favori** à côté du nom de l'auteur l'enregistre (✓ pour le retirer). Toucher son nom ouvre son profil.

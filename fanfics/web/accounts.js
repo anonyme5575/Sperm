@@ -167,7 +167,7 @@
 
   function toggleAuthor(p) {
     const i = A.authors.findIndex((a) => a.site === p.site && a.id === p.id);
-    if (i >= 0) { A.authors.splice(i, 1); A.save(); A.toast(`${p.name} retiré de tes auteurs favoris.`); }
+    if (i >= 0) { A.markAuthorDeleted(A.authors[i]); A.authors.splice(i, 1); A.save(); A.toast(`${p.name} retiré de tes auteurs favoris.`); }
     else { A.addAuthor(p); A.toast(`${p.name} ajouté à tes auteurs favoris.`); }
     A.render();
   }
@@ -236,6 +236,63 @@
     });
   }
 
+  // ------------------------------------------------------------ nouveautés trouvées en arrière-plan (notifications)
+
+  // events : [{kind: "chapters"|"story", site, url, title, author, chapters, added, t}]
+  function applyUpdates(events) {
+    if (!events || !events.length) return;
+    let chapters = 0, stories = 0;
+    const news = A.settings.news || (A.settings.news = []);
+    for (const e of events) {
+      const f = A.findStory(e.url);
+      if (e.kind === "chapters" && f) {
+        if (!f.chapters || e.chapters > f.chapters) {
+          f.newChapters = (f.newChapters || 0) + (e.added || e.chapters - (f.chapters || 0));
+          f.chapters = e.chapters;
+          if (f.chaptersTotal != null && f.chaptersTotal < f.chapters) f.chaptersTotal = null;
+          chapters++;
+        }
+      } else if (!f && !news.some((x) => P.storyKey(x.url) === P.storyKey(e.url))) {
+        news.unshift({ url: e.url, site: e.site, title: e.title, author: e.author, chapters: e.chapters, kind: e.kind, t: e.t });
+        stories++;
+      }
+    }
+    news.splice(30);
+    A.save();
+    A.render();
+    if (chapters || stories) {
+      A.toast([chapters && `${chapters} fanfic${chapters > 1 ? "s" : ""} avec de nouveaux chapitres`,
+        stories && `${stories} nouveauté${stories > 1 ? "s" : ""} de tes auteurs`].filter(Boolean).join(" · "));
+      if (chapters) { A.view.tab = "new"; A.render(); }
+    }
+    if (A.refreshSearch && !$("searchView").hidden) A.refreshSearch();
+  }
+
+  function pullUpdates() {
+    if (!A.native || typeof Android.takeUpdates !== "function") return;
+    try { applyUpdates(JSON.parse(Android.takeUpdates())); } catch (e) { /* rien de lisible */ }
+  }
+  window.__resume = pullUpdates;
+
+  function setNotify(on) {
+    A.settings.notify = on;
+    A.save();
+    if (A.native && typeof Android.setNotify === "function") Android.setNotify(on);
+  }
+  $("setNotify").addEventListener("change", (e) => setNotify(e.target.checked));
+  $("btnMenu").addEventListener("click", () => { $("setNotify").checked = A.settings.notify !== false; });
+  $("mCheckNow").addEventListener("click", async () => {
+    if (!A.native) { A.toast("La vérification en arrière-plan ne marche que dans l'app Android."); return; }
+    A.toast("Vérification de tes auteurs et fanfics en cours…");
+    try {
+      await A.nativeCall("checkUpdates");
+      const ev = JSON.parse(Android.takeUpdates());
+      if (ev.length) applyUpdates(ev); else A.toast("Rien de nouveau pour l'instant.");
+    } catch (e) { A.toast(e.message); }
+  });
+  if (A.native) setTimeout(() => { setNotify(A.settings.notify !== false); pullUpdates(); }, 300);
+
+  A.applyUpdates = applyUpdates;
   A.askProfile = askProfile;
   A.importAccount = importAccount;
   A.lookupAccount = lookupAccount;

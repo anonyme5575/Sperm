@@ -695,14 +695,26 @@
   const Search = {
     parseQuery, refine,
     // Adresses de recherche Wattpad, essayées dans l'ordre : recherche actuelle du site (v4), puis ancienne (v3).
-    wattpadUrls(q, page) {
-      const e = encodeURIComponent(parseQuery(q).api), off = ((page || 1) - 1) * 50;
-      const f = "stories(id,title,user(name),description,numParts,completed,tags,voteCount,mature,language(name)),total,nextUrl";
+    // Adresses de la recherche Wattpad, dans l'ordre d'essai : celle du site (v4/search), celle des clients
+    // non officiels (v4/stories, accepte #tag et title:), puis l'ancienne (v3). apiQuery : texte envoyé tel quel.
+    wattpadUrls(apiQuery, page) {
+      const e = encodeURIComponent(apiQuery), off = ((page || 1) - 1) * 50;
+      const f = "&fields=stories(id,title,user(name),description,numParts,completed,tags,voteCount,mature,language(name)),total,nextUrl";
       return [
-        "https://www.wattpad.com/v4/search/stories/?query=" + e + "&limit=50&offset=" + off + "&mature=true&free=1&paid=1&fields=" + f,
-        "https://www.wattpad.com/api/v3/stories?query=" + e + "&limit=50&offset=" + off + "&fields=" + f,
+        "https://www.wattpad.com/v4/search/stories?query=" + e + "&limit=50&offset=" + off + "&mature=true" + f,
+        "https://www.wattpad.com/v4/stories?query=" + e + "&filter=hot&limit=50&offset=" + off + "&mature=1" + f,
+        "https://www.wattpad.com/api/v3/stories?query=" + e + "&limit=50&offset=" + off + f,
       ];
     },
+    // Variantes envoyées en parallèle : Wattpad compare des mots entiers, les tags complètent le texte.
+    wattpadQueries(q) {
+      const o = parseQuery(q);
+      const out = [o.api];
+      const words = [...o.words, ...o.tags];
+      if (words.length) out.push(words.map((w) => "#" + w.replace(/\s+/g, "")).join(" "));
+      return out.filter((x, i, a) => x && a.indexOf(x) === i);
+    },
+
     sites: ["ao3", "ffn", "wattpad"],
 
     url(site, q, o, page) {

@@ -212,15 +212,14 @@
   // Wattpad renvoie des résultats approximatifs : on filtre strictement et on trie ici,
   // en lisant jusqu'à 4 pages pour avoir assez de résultats vraiment pertinents.
   let wpWorking = 0; // adresse de recherche Wattpad qui a répondu la dernière fois
-  async function wattpadPage(page) {
-    const urls = S.wattpadUrls(state.q, page);
+  async function wattpadPage(apiQuery, page) {
+    const urls = S.wattpadUrls(apiQuery, page);
     const order = [wpWorking, ...urls.keys()].filter((v, i, a) => a.indexOf(v) === i);
     let last = null;
     for (const k of order) {
       try {
         const body = await A.download(urls[k], "wattpad");
-        const d = JSON.parse(body);
-        if (!Array.isArray(d.stories)) throw new Error("réponse inattendue");
+        if (!Array.isArray(JSON.parse(body).stories)) throw new Error("réponse inattendue de Wattpad");
         wpWorking = k;
         return S.parse("wattpad", body);
       } catch (e) { last = e; }
@@ -228,27 +227,31 @@
     throw last;
   }
 
+  // Plusieurs requêtes en parallèle (texte, tags), fusion, puis filtrage strict et tri ici.
   async function wattpadPrecise(t) {
     const f = { language: $("wLang").value, complete: $("wComplete").checked, noMature: !$("wMature").checked };
-    const raw = [];
-    let next = true;
-    for (let i = 0; i < 4 && next && S.refine(raw, state.q, f).length < 15; i++) {
+    const queries = S.wattpadQueries(state.q);
+    const raw = [], seen = new Set();
+    let next = false, errors = 0;
+    for (let i = 0; i < 3; i++) {
       if (i) state.page++;
-      const r = await wattpadPage(state.page);
+      const pages = await Promise.all(queries.map((q) => wattpadPage(q, state.page).catch(() => { errors++; return null; })));
       if (t !== state.token) return { results: [], next: false };
-      raw.push(...r.results);
-      next = r.next;
+      next = false;
+      for (const r of pages) if (r) {
+        next = next || r.next;
+        for (const x of r.results) if (!seen.has(x.url)) { seen.add(x.url); raw.push(x); }
+      }
+      if (!next || S.refine(raw, state.q, f).length >= 20) break;
     }
+    if (!raw.length && errors) throw new Error("Wattpad ne répond pas à la recherche.");
     const exact = S.refine(raw, state.q, f);
-    state.note = "";
-    if (exact.length || !raw.length) return { results: exact, next };
-    // Rien ne contient tous les mots : on montre les plus proches, en le disant.
     const words = S.parseQuery(state.q).words.length;
-    const near = words > 1 ? S.refine(raw, state.q, f, Math.ceil(words / 2)) : [];
-    state.note = near.length
-      ? `Aucune histoire ne contient tous les mots. Résultats proches (Wattpad en a renvoyé ${raw.length}) :`
-      : `Wattpad a renvoyé ${raw.length} histoires, mais aucune ne correspond (filtres compris).`;
-    return { results: near, next };
+    const near = !exact.length && words > 1 ? S.refine(raw, state.q, f, Math.ceil(words / 2)) : [];
+    state.note = exact.length ? `Wattpad : ${raw.length} reçues, ${exact.length} contiennent tous les mots.`
+      : near.length ? `Aucune ne contient tous les mots (Wattpad en a renvoyé ${raw.length}). Résultats proches :`
+      : `Wattpad a renvoyé ${raw.length} histoires, aucune ne correspond (filtres compris).`;
+    return { results: exact.length ? exact : near, next };
   }
 
   function info(r) {

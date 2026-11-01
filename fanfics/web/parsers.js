@@ -556,6 +556,11 @@
         });
       }
       if (site === "ffn") {
+        if (/must be logged in to access|login required/i.test(doc.body ? doc.body.textContent.slice(0, 2000) : "")) {
+          const e = new Error("FanFiction.net demande d'être connecté(e) pour chercher un pseudo.");
+          e.login = true;
+          throw e;
+        }
         const links = Array.from(doc.querySelectorAll("#content_wrapper_inner a[href^='/u/'], a[href^='/u/']"));
         const exact = links.find((a) => clean(a.textContent).toLowerCase() === want);
         if (!exact) return null; // FanFiction.net renvoie des noms proches : on ne garde que le pseudo exact

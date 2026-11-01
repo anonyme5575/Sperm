@@ -118,6 +118,7 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (loginMode) { endLogin(); return; }
         if (bShown) { finishBrowser(error("Vérification annulée.")); return; }
         web.evaluateJavascript("window.__back ? window.__back() : false", new ValueCallback<String>() {
             @Override
@@ -259,10 +260,12 @@ public class MainActivity extends Activity {
     // l'interface, et on la montre seulement si la vérification demande de cocher une case.
     // Les cookies de vérification sont gardés : les fois suivantes, ça passe sans rien demander.
 
-    /** Script qui dit où en est la page : OK (attendue), WAIT (vérification), MAINT, PAGE (autre). */
+    /** Script qui dit où en est la page : OK (attendue), LOGIN (réservée aux membres), WAIT (vérification), MAINT, PAGE (autre). */
     private static String probe(String ready) {
         String sel = ready == null || ready.isEmpty() ? "#profile_top" : ready;
         return "(function(){var d=document;"
+            + "var top=d.body?d.body.innerText.slice(0,800):'';"
+            + "if(/login required|must be logged in to access/i.test(top))return 'LOGIN';"
             + "if(d.querySelector(" + JSONObject.quote(sel) + ")&&d.readyState!=='loading')return 'OK'+d.documentElement.outerHTML;"
             + "var t=(d.title||'')+' '+(d.body?d.body.innerText.slice(0,3000):'');"
             + "if(/just a moment|un instant|verify you are human|v\u00e9rifi|checking your browser|cloudflare|ddos/i.test(t))return 'WAIT';"
@@ -275,6 +278,9 @@ public class MainActivity extends Activity {
     private WebView browser;
     private LinearLayout browserBox;
     private View browserBar;
+    private TextView browserMsg;
+    private Button browserClose;
+    private boolean loginMode; // la page de connexion du site est affichée pour l'utilisatrice
     private String bId;
     private String bProbe;
     private long bStart;
@@ -303,6 +309,9 @@ public class MainActivity extends Activity {
                             o.put("url", browser.getUrl());
                             o.put("body", r.substring(r.startsWith("OK") ? 2 : 4));
                             finishBrowser(o.toString());
+                        } else if (r.equals("LOGIN")) {
+                            finishBrowser("{\"ok\":false,\"login\":true,\"error\":"
+                                    + JSONObject.quote("Le site demande d'être connecté(e) à un compte pour cette page.") + "}");
                         } else if (r.equals("MAINT")) {
                             finishBrowser(error("Le site est en maintenance : réessaie plus tard."));
                         } else if (elapsed > 150000) {
@@ -325,7 +334,7 @@ public class MainActivity extends Activity {
 
     private void browserFetch(String id, String url, String ready) {
         bQueue.add(new String[]{id, url, ready});
-        if (bId == null) nextBrowser();
+        if (bId == null && !loginMode) nextBrowser();
     }
 
     private void nextBrowser() {
@@ -380,11 +389,16 @@ public class MainActivity extends Activity {
         close.setText("Annuler");
         close.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onClick(View v) { finishBrowser(error("Vérification annulée.")); }
+            public void onClick(View v) {
+                if (loginMode) endLogin();
+                else finishBrowser(error("Vérification annulée."));
+            }
         });
         bar.addView(close);
         bar.setVisibility(View.GONE);
         browserBar = bar;
+        browserMsg = msg;
+        browserClose = close;
         browserBox.addView(bar, new LinearLayout.LayoutParams(-1, -2));
         browserBox.addView(browser, new LinearLayout.LayoutParams(-1, 0, 1));
         root.addView(browserBox, 0); // derrière l'interface : chargée et active, mais pas visible
@@ -398,6 +412,31 @@ public class MainActivity extends Activity {
         Matcher m = Pattern.compile("Chrome/[\\d.]+").matcher(ua);
         String chrome = m.find() ? m.group() : "Chrome/124.0.0.0";
         return "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) " + chrome + " Safari/537.36";
+    }
+
+    /** Affiche la page de connexion d'un site ; les cookies de session sont gardés pour les téléchargements. */
+    private void startLogin(String url) {
+        if (bId != null) {
+            Toast.makeText(this, "Un chargement est en cours : réessaie dans quelques secondes.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        ensureBrowser();
+        loginMode = true;
+        browserMsg.setText("Connecte-toi à ton compte, puis touche Terminé. L'app restera connectée.");
+        browserClose.setText("Terminé");
+        browser.loadUrl(url);
+        showBrowser();
+    }
+
+    private void endLogin() {
+        loginMode = false;
+        CookieManager.getInstance().flush();
+        browserMsg.setText("Le site vérifie que tu n'es pas un robot. Si une case apparaît, coche-la : la fanfic sera ajoutée toute seule.");
+        browserClose.setText("Annuler");
+        hideBrowser();
+        browser.loadUrl("about:blank");
+        web.evaluateJavascript("window.__loginDone && window.__loginDone()", null);
+        if (bId == null) nextBrowser();
     }
 
     private void showBrowser() {
@@ -491,6 +530,11 @@ public class MainActivity extends Activity {
         public void cacheClear() {
             File[] all = cacheDir().listFiles();
             if (all != null) for (File f : all) f.delete();
+        }
+
+        @JavascriptInterface
+        public void login(final String url) {
+            ui.post(new Runnable() { @Override public void run() { startLogin(url); } });
         }
 
         @JavascriptInterface

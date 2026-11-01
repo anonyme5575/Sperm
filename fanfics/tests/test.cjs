@@ -281,6 +281,9 @@ async function test(name, fn) {
     const f = await L("ffn", "Moi", "ffn-writers.html");
     assert.strictEqual(f.url, "https://www.fanfiction.net/u/999/Moi");
     assert.strictEqual(await L("ffn", "Mo", "ffn-writers.html"), null);
+    const login = await ev((b) => { try { Parsers.Profiles.parseLookup("ffn", "Moi", b); } catch (e) { return { m: e.message, login: e.login }; } }, page("ffn-login.html"));
+    assert.strictEqual(login.login, true);
+    assert.match(login.m, /connecté/);
     const w = await L("wattpad", "luna_ecrit", "wattpad-user.json");
     assert.strictEqual(w.url, "https://www.wattpad.com/user/luna_ecrit");
     assert.deepStrictEqual(w.stats[0], [4, "histoires"]);
@@ -294,6 +297,7 @@ async function test(name, fn) {
   const routes = {
     "https://archiveofourown.org/users/Moi/profile": { ok: true, status: 200, body: page("ao3-profile.html") },
     "https://www.fanfiction.net/search/?keywords=Moi&ready=1&type=writer": { ok: true, status: 200, body: page("ffn-writers.html") },
+    "https://www.fanfiction.net/search/?keywords=Zed&ready=1&type=writer": { ok: true, status: 200, body: page("ffn-login.html") },
     "https://www.fanfiction.net/u/999/Moi": { ok: true, status: 200, body: page("ffn-profile.html") },
     "https://www.fanfiction.net/u/222/Luna-Writes": { ok: true, status: 200, body: page("ffn-author.html") },
     "https://archiveofourown.org/users/Moi/bookmarks": { ok: true, status: 200, body: page("ao3-bookmarks-1.html") },
@@ -344,6 +348,7 @@ async function test(name, fn) {
       takeShared: () => { const t = window.__inbox; window.__inbox = ""; return t; },
       ready: () => {},
       open: (u) => window.__opened.push(u),
+      login: (u) => { window.__login = u; },
       exportFile: (n, j) => { window.__exported = j; },
       importFile: () => {},
     };
@@ -668,6 +673,27 @@ async function test(name, fn) {
     // Wattpad n'a pas ce compte (404) : pas d'erreur affichée, juste absent.
     assert.deepStrictEqual(await app.$$eval(".person .b:first-child", (e) => e.map((x) => x.textContent)), ["AO3", "FanFiction.net"]);
     assert.match(await app.textContent(".person[data-i='0']"), /Membre depuis 2019-03-14/);
+  });
+
+  await test("app : FanFiction.net exige une connexion -> bouton, puis recherche relancée", async () => {
+    await app.fill("#sQuery", "Zed");
+    await app.press("#sQuery", "Enter");
+    await app.waitForSelector(".login");
+    await app.waitForFunction(() => !document.querySelector(".spinner"));
+    assert.match(await app.textContent(".login"), /connexion demandée/);
+    await app.click(".login [data-s=login]");
+    assert.strictEqual(await app.evaluate(() => window.__login), "https://www.fanfiction.net/login.php");
+    // Connectée : la recherche FanFiction.net répond.
+    routes["https://www.fanfiction.net/search/?keywords=Zed&ready=1&type=writer"] =
+      { ok: true, status: 200, body: page("ffn-writers.html").replace("/u/999/Moi\">Moi", "/u/777/Zed\">Zed") };
+    await app.evaluate(() => window.__loginDone());
+    await app.waitForFunction(() => document.querySelectorAll(".person:not(.login)").length === 1 && !document.querySelector(".spinner"));
+    assert.strictEqual(await app.$(".login"), null);
+    assert.match(await app.textContent(".person"), /Zed/);
+    // Retour à la recherche « Moi » pour la suite.
+    await app.fill("#sQuery", "Moi");
+    await app.press("#sQuery", "Enter");
+    await app.waitForFunction(() => document.querySelectorAll(".person").length === 2 && !document.querySelector(".spinner"));
   });
 
   await test("app : profil d'un compte — histoires, favoris, auteurs suivis", async () => {

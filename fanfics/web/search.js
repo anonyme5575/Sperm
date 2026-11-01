@@ -76,7 +76,20 @@
     </article>`;
   }
 
-  const card = (r, i) => (r.kind === "author" || r.kind === "account" ? personCard(r, i) : storyCard(r, i));
+  // Le site exige d'être connecté(e) (FanFiction.net pour chercher un pseudo).
+  const LOGIN_URL = { ffn: "https://www.fanfiction.net/login.php" };
+  function loginCard(r, i) {
+    return `<article class="card person sres login" data-i="${i}" style="--i:${i % 12}">
+      <div class="crow">${A.avatar("?", r.site)}<div class="cbody">
+        <div class="t">${esc(P.SITES[r.site])} : connexion demandée</div>
+        <div class="a">${esc(P.SITES[r.site])} ne laisse chercher un pseudo qu'aux membres connectés.</div>
+      </div></div>
+      <div class="hint" style="margin:8px 0 0">${A.native ? "Connecte-toi une fois dans l'app (elle garde la session), ou" : ""} colle le lien du profil (<b>fanfiction.net/u/…</b>) avec le bouton +.</div>
+      <div class="actions">${A.native && LOGIN_URL[r.site] ? `<button class="primary" data-s="login">Me connecter à ${esc(P.SITES[r.site])}</button>` : ""}</div>
+    </article>`;
+  }
+
+  const card = (r, i) => (r.kind === "login" ? loginCard(r, i) : r.kind === "author" || r.kind === "account" ? personCard(r, i) : storyCard(r, i));
 
   function emptyText() {
     if (state.mode === "list") return state.list.sections[state.list.section].empty || "Rien de public ici.";
@@ -90,7 +103,7 @@
     html += state.results.map(card).join("");
     if (state.loading) html += `<div class="rwait"><div class="spinner"></div>${state.mode === "accounts" ? "Recherche du compte sur les trois sites…" : "Chargement…"}${state.site === "ffn" || state.mode !== "stories" ? "<br><small>FanFiction.net peut prendre quelques secondes.</small>" : ""}</div>`;
     else if (state.error) html += `<p class="rwait">${esc(state.error)}</p>`;
-    else if (!state.results.length && emptyText()) html += `<p class="rwait">${esc(emptyText())}</p>`;
+    else if (!state.results.some((r) => r.kind !== "login") && emptyText()) html += `<p class="rwait">${esc(emptyText())}</p>`;
     else if (state.next) html += `<div class="actions" style="justify-content:center"><button class="ghost" data-s="more">Plus de résultats</button></div>`;
     if (state.mode !== "list" && !state.q && !state.results.length && !state.loading) {
       html = state.mode === "accounts"
@@ -125,12 +138,14 @@
         state.results.sort((a, b) => SITE_ORDER.indexOf(a.site) - SITE_ORDER.indexOf(b.site));
         render();
       } catch (e) {
-        if (!/introuvable|404/i.test(e.message)) errors.push(P.SITES[site] + " : " + e.message);
+        if (t !== state.token) return;
+        if (e.login) { state.results.push({ kind: "login", site }); render(); }
+        else if (!/introuvable|404/i.test(e.message)) errors.push(P.SITES[site] + " : " + e.message);
       }
     }));
     if (t !== state.token) return;
     state.loading = false;
-    if (!state.results.length && errors.length) state.error = "Recherche incomplète. " + errors.join(" · ");
+    if (!state.results.some((r) => r.kind === "account") && errors.length) state.error = "Recherche incomplète. " + errors.join(" · ");
     render();
   }
 
@@ -294,8 +309,14 @@
       case "tr": r.showOrig = false; render(); break;
       case "fav": A.toggleAuthor(r); render(); break;
       case "profile": A.openProfile(r); break;
+      case "login": Android.login(LOGIN_URL[r.site]); break;
     }
   });
+
+  // Retour de la page de connexion : on relance la recherche de compte.
+  window.__loginDone = () => {
+    if (!$("searchView").hidden && state.mode === "accounts" && state.q) { $("sQuery").value = state.q; run(false); }
+  };
 
   A.backHandlers.push(close);
   A.openSearch = open;

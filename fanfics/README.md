@@ -47,7 +47,7 @@ App Android pour ranger les fanfics que tu aimes à partir de leurs liens.
 
 Depuis cette page : ajouter ou lire chaque histoire, ouvrir le profil d'un auteur suivi, **C'est moi : importer mes favoris**, **☆ Auteur favori**. Retour revient à la page précédente.
 
-Sur FanFiction.net, seul le pseudo exact est retenu (le site propose aussi des noms proches).
+Sur FanFiction.net, seul le pseudo exact est retenu (le site propose aussi des noms proches). **FanFiction.net n'autorise la recherche par pseudo qu'aux membres connectés** : l'app affiche alors « Me connecter à FanFiction.net », ouvre leur page de connexion dans l'app (tu te connectes une fois, la session est gardée) et relance la recherche quand tu touches Terminé. Sans compte, colle simplement le lien du profil (`fanfiction.net/u/…`) avec + : les pages de profil sont publiques.
 
 ## Importer mes favoris, mes auteurs favoris
 

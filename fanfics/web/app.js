@@ -71,7 +71,12 @@
   function nativeCall(method, url, ready) {
     return new Promise((resolve, reject) => {
       const id = "f" + ++seq;
-      pending[id] = (r) => (r.ok ? resolve(r.body) : reject(new Error(r.error || "Erreur " + r.status)));
+      pending[id] = (r) => {
+        if (r.ok) return resolve(r.body);
+        const e = new Error(r.error || "Erreur " + r.status);
+        e.login = !!r.login; // page réservée aux membres connectés
+        reject(e);
+      };
       if (method === "fetchBrowser") Android.fetchBrowser(id, url, ready || "");
       else Android.fetch(id, url);
     });

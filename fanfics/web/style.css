@@ -127,3 +127,11 @@ button.link { background: none; border: 0; color: var(--accent); padding: 0 2px;
 .ssum { font-size: 13px; color: #d4cfdc; margin-top: 8px; white-space: pre-line; max-height: 9.5em; overflow: hidden; }
 .item.check { display: flex; align-items: center; gap: 10px; }
 .item.check input { width: 20px; height: 20px; }
+.card.author { border-left-color: var(--accent); }
+.card.author .actions { margin-top: 8px; }
+.card.author .actions button { padding: 7px 14px; }
+#sTitle { font-weight: 650; font-size: 16px; padding-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.acc { display: flex; align-items: center; gap: 8px; background: var(--card); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; }
+.acc span { flex: 1; min-width: 0; font-size: 14px; }
+.acc small { display: block; color: var(--muted); font-size: 12px; }
+.acc button { padding: 7px 10px; font-size: 13px; }

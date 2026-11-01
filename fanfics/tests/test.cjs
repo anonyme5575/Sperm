@@ -223,12 +223,64 @@ async function test(name, fn) {
     assert.strictEqual(r.results[0].url, "https://www.wattpad.com/story/18225403");
     assert.strictEqual(r.results[0].chapters, 42);
   });
+  await test("profils : liens reconnus", async () => {
+    const r = await ev(() => [
+      Parsers.profileOf("https://m.fanfiction.net/u/999/Moi"),
+      Parsers.profileOf("https://archiveofourown.org/users/Wren/pseuds/Wren/works"),
+      Parsers.profileOf("https://www.wattpad.com/user/plume_bleue"),
+      Parsers.profileOf("https://archiveofourown.org/works/5"),
+    ]);
+    assert.deepStrictEqual(r[0], { site: "ffn", id: "999", name: "Moi", url: "https://www.fanfiction.net/u/999/Moi" });
+    assert.deepStrictEqual(r[1], { site: "ao3", id: "Wren", name: "Wren", url: "https://archiveofourown.org/users/Wren" });
+    assert.strictEqual(r[2].site, "wattpad");
+    assert.strictEqual(r[3], null);
+  });
+
+  await test("profils FanFiction.net : favoris et auteurs favoris", async () => {
+    const r = await ev((b) => Parsers.Profiles.parseFavorites(Parsers.profileOf("https://www.fanfiction.net/u/999/Moi"), "both", b), page("ffn-profile.html"));
+    assert.strictEqual(r.owner, "Moi");
+    assert.deepStrictEqual(r.stories.map((x) => x.title), ["The Long Road Home", "Moonlight"]);
+    assert.strictEqual(r.stories[1].author, "Luna Writes");
+    assert.deepStrictEqual(r.stories[1].fandoms, ["Bleach"]);
+    assert.strictEqual(r.stories[1].complete, false);
+    assert.deepStrictEqual(r.authors.map((a) => a.name), ["Luna Writes", "Wanderer"]);
+  });
+
+  await test("profils FanFiction.net : histoires d'un auteur (pas ses favoris)", async () => {
+    const r = await ev((b) => Parsers.Profiles.parseWorks(Parsers.profileOf("https://www.fanfiction.net/u/222/Luna-Writes"), b), page("ffn-author.html"));
+    assert.deepStrictEqual(r.results.map((x) => x.title), ["Moonlight", "Sunrise"]);
+    assert.strictEqual(r.results[1].author, "Luna Writes");
+    assert.strictEqual(r.results[1].complete, true);
+  });
+
+  await test("profils AO3 : marque-pages (séries ignorées, page suivante)", async () => {
+    const pr = await ev(() => Parsers.profileOf("https://archiveofourown.org/users/Moi"));
+    const r = await ev(([b, p]) => Parsers.Profiles.parseFavorites(p, "stories", b), [page("ao3-bookmarks-1.html"), pr]);
+    assert.deepStrictEqual(r.stories.map((x) => x.title), ["Road Trip", "Angel"]);
+    assert.strictEqual(r.stories[0].author, "Dean");
+    assert.strictEqual(r.next, true);
+    const r2 = await ev(([b, p]) => Parsers.Profiles.parseFavorites(p, "stories", b), [page("ao3-bookmarks-2.html"), pr]);
+    assert.strictEqual(r2.next, false);
+  });
+
+  await test("profils Wattpad : listes et comptes suivis", async () => {
+    const pr = await ev(() => Parsers.profileOf("https://www.wattpad.com/user/moi"));
+    const l = await ev(([b, p]) => Parsers.Profiles.parseFavorites(p, "stories", b), [page("wattpad-lists.json"), pr]);
+    assert.deepStrictEqual(l.stories.map((x) => x.title), ["Coeur de Glace", "Night City"]);
+    const f = await ev(([b, p]) => Parsers.Profiles.parseFavorites(p, "authors", b), [page("wattpad-following.json"), pr]);
+    assert.deepStrictEqual(f.authors.map((a) => a.name), ["plume_bleue", "neo"]);
+  });
   await p.close();
 
   // ---------------------------------------------------------------- l'app entière
   // Faux pont Android : sert les pages d'exemple, garde les données en mémoire.
   const ao3v2 = page("ao3.html").replace(">12</a>/?", ">14</a>/?");
   const routes = {
+    "https://www.fanfiction.net/u/999/Moi": { ok: true, status: 200, body: page("ffn-profile.html") },
+    "https://www.fanfiction.net/u/222/Luna-Writes": { ok: true, status: 200, body: page("ffn-author.html") },
+    "https://archiveofourown.org/users/Moi/bookmarks": { ok: true, status: 200, body: page("ao3-bookmarks-1.html") },
+    "https://archiveofourown.org/users/Moi/bookmarks?page=2": { ok: true, status: 200, body: page("ao3-bookmarks-2.html") },
+    "https://archiveofourown.org/users/Wren/works": { ok: true, status: 200, body: page("ao3-search.html") },
     "https://archiveofourown.org/works/search?work_search%5Bquery%5D=drarry": { ok: true, status: 200, body: page("ao3-search.html") },
     "https://archiveofourown.org/works/555/navigate?view_adult=true": { ok: true, status: 200, body: page("ao3-navigate.html") },
     "https://archiveofourown.org/works/555/chapters/2001?view_adult=true": { ok: true, status: 200, body: page("ao3-ch1.html") },
@@ -511,6 +563,85 @@ async function test(name, fn) {
     await app.click("#menu [data-close]");
   });
 
+  const addText = async (t) => { await app.click("#fab"); await app.fill("#addText", t); await app.click("#addGo"); };
+  const fic = (title) => app.evaluate((t) => window.FanficsApp.fics.find((x) => x.title === t), title);
+
+  await test("app : lien de mon compte FanFiction.net -> favoris et auteurs importés", async () => {
+    const before = (await titles()).length;
+    await addText("https://www.fanfiction.net/u/999/Moi");
+    await app.waitForSelector("#profileSheet:not([hidden])");
+    assert.match(await app.textContent("#pfMine"), /histoires favorites et ses auteurs favoris/);
+    await app.click("#pfMine");
+    await app.waitForFunction(() => /ajoutée/.test(document.getElementById("toast").textContent));
+    assert.match(await app.textContent("#toast"), /1 histoire ajoutée, 1 déjà dans ta liste, 2 auteurs ajoutés/);
+    const m = await fic("Moonlight");
+    assert.strictEqual(m.fav, true);
+    assert.deepStrictEqual(m.shelves, ["Favoris FanFiction.net"]);
+    assert.strictEqual((await fic("The Long Road Home")).fav, true);
+    assert.strictEqual(await fic("Mon Histoire"), undefined); // ses propres histoires ne sont pas des favoris
+    assert.strictEqual(await app.getAttribute("#tabs .on", "data-tab"), "fav");
+    await app.click("#tabs [data-tab=all]");
+    assert.strictEqual((await titles()).length, before + 1);
+  });
+
+  await test("app : onglet Auteurs et histoires d'un auteur", async () => {
+    await app.click("#tabs [data-tab=authors]");
+    assert.deepStrictEqual(await app.$$eval("#list .author .t", (e) => e.map((x) => x.textContent)), ["Luna Writes", "Wanderer"]);
+    assert.match(await app.textContent("#list .author:has-text('Wanderer')"), /1 fic dans ta liste/);
+    await app.click("#list .author:has-text('Luna Writes') [data-au=works]");
+    await app.waitForSelector("#searchView:not([hidden]) .sres");
+    assert.strictEqual(await app.textContent("#sTitle"), "Luna Writes · FanFiction.net");
+    assert.deepStrictEqual(await app.$$eval(".sres .t", (e) => e.map((x) => x.textContent)), ["Moonlight", "Sunrise"]);
+    assert.match(await app.textContent(".sres[data-i='0']"), /Dans ta liste/);
+    await app.click(".sres[data-i='1'] [data-s=add]");
+    assert.ok(await fic("Sunrise"));
+    await app.evaluate(() => window.__back());
+    // La recherche normale revient ensuite.
+    await app.click("#btnSearch");
+    assert.strictEqual(await app.isVisible("#sQuery"), true);
+    assert.strictEqual(await app.isHidden("#sTitle"), true);
+    await app.evaluate(() => window.__back());
+  });
+
+  await test("app : lien d'un auteur AO3 -> auteur favori -> ses histoires", async () => {
+    await addText("https://archiveofourown.org/users/Wren/pseuds/Wren");
+    await app.waitForSelector("#profileSheet:not([hidden])");
+    await app.click("#pfAuthor");
+    await app.click("#tabs [data-tab=authors]");
+    await app.click("#list .author:has-text('Wren') [data-au=works]");
+    await app.waitForSelector("#searchView:not([hidden]) .sres");
+    assert.ok((await app.$$eval(".sres .t", (e) => e.map((x) => x.textContent))).includes("Stars Fall"));
+    await app.evaluate(() => window.__back());
+    await app.click("#tabs [data-tab=all]");
+  });
+
+  await test("app : marque-pages AO3 sur plusieurs pages", async () => {
+    await addText("https://archiveofourown.org/users/Moi");
+    await app.waitForSelector("#profileSheet:not([hidden])");
+    assert.match(await app.textContent("#pfMine"), /auteurs suivis : ils sont privés/);
+    await app.click("#pfMine");
+    await app.waitForFunction(() => /ajoutée/.test(document.getElementById("toast").textContent), null, { timeout: 15000 });
+    assert.match(await app.textContent("#toast"), /^3 histoires ajoutées\.$/);
+    assert.deepStrictEqual((await fic("Hunter")).shelves, ["Marque-pages AO3"]);
+  });
+
+  await test("app : comptes dans le menu, synchroniser n'ajoute pas de doublons", async () => {
+    await app.click("#btnMenu");
+    assert.deepStrictEqual(await app.$$eval("#accounts .acc span", (e) => e.map((x) => x.firstChild.textContent)), ["Moi", "Moi"]);
+    await app.click("#accounts [data-acc='0'] [data-ac=sync]");
+    await app.waitForFunction(() => /déjà dans ta liste/.test(document.getElementById("toast").textContent));
+    assert.match(await app.textContent("#toast"), /0 histoire ajoutée, 2 déjà dans ta liste, 0 auteur ajouté/);
+  });
+
+  await test("app : les auteurs et comptes sont dans la sauvegarde", async () => {
+    await app.click("#btnMenu");
+    await app.click("#mExport");
+    const b = JSON.parse(await app.evaluate(() => window.__exported));
+    assert.deepStrictEqual(b.authors.map((a) => a.name), ["Luna Writes", "Wanderer", "Wren"]);
+    assert.strictEqual(b.accounts.length, 2);
+  });
+
+  await app.click("#tabs [data-tab=all]");
   await app.waitForTimeout(3500); // laisse partir le message
   await app.screenshot({ path: path.join(__dirname, "capture.png") });
   await app.click("#list .card:has-text('Le Dernier Hiver')");
@@ -523,6 +654,9 @@ async function test(name, fn) {
   await app.evaluate(() => window.__back());
   await app.click("#btnSearch");
   await app.screenshot({ path: path.join(__dirname, "capture-recherche.png") });
+  await app.evaluate(() => window.__back());
+  await app.click("#tabs [data-tab=authors]");
+  await app.screenshot({ path: path.join(__dirname, "capture-auteurs.png") });
   await test("app : aucune erreur JavaScript", async () => assert.deepStrictEqual(errors, []));
 
   await browser.close();

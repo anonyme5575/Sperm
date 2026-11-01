@@ -18,8 +18,10 @@
   const STATUS_ONE = { toread: "À lire", reading: "En cours", read: "Lue", dropped: "Abandonnée" };
 
   let fics = [];
+  let authors = []; // auteurs favoris : {site, id, name, url, addedAt}
   // Réglages : traduction automatique vers `lang`, taille du texte du lecteur.
-  const settings = { autoTranslate: true, lang: "fr", fontSize: 19 };
+  // accounts : comptes de l'utilisatrice dont on importe les favoris.
+  const settings = { autoTranslate: true, lang: "fr", fontSize: 19, accounts: [] };
   const view = { tab: "all", q: "", fandom: "", shelf: "", sort: "added" };
   const busy = new Set(); // ids en cours de téléchargement
 
@@ -31,6 +33,7 @@
       const d = raw ? JSON.parse(raw) : null;
       fics = d && Array.isArray(d.fics) ? d.fics : [];
       if (d && d.settings) Object.assign(settings, d.settings);
+      authors = d && Array.isArray(d.authors) ? d.authors : [];
     } catch (e) {
       fics = [];
       toast("Impossible de lire les données enregistrées.");
@@ -45,7 +48,7 @@
   function flush() {
     clearTimeout(saveTimer);
     saveTimer = 0;
-    const json = JSON.stringify({ version: 1, fics, settings });
+    const json = JSON.stringify({ version: 1, fics, authors, settings });
     if (native) Android.save(json);
     else localStorage.setItem("fanfics", json);
   }
@@ -177,12 +180,18 @@
 
   // ------------------------------------------------------------ ajout
 
+  const sameStory = (a, b) => P.storyKey(a) === P.storyKey(b);
+  const findStory = (url) => fics.find((f) => sameStory(f.url, url));
+
   function addLinks(text, status, shelf) {
-    const urls = P.extractUrls(text);
-    if (!urls.length) { toast("Aucun lien trouvé."); return 0; }
+    const all = P.extractUrls(text);
+    const profiles = all.map(P.profileOf).filter(Boolean);
+    const urls = all.filter((u) => !P.profileOf(u));
+    if (profiles.length && window.FanficsApp.askProfile) window.FanficsApp.askProfile(profiles);
+    if (!urls.length) { if (!profiles.length) toast("Aucun lien trouvé."); return 0; }
     let added = 0, dup = 0;
     for (const url of urls) {
-      const existing = fics.find((f) => f.url === url);
+      const existing = findStory(url);
       if (existing) {
         dup++;
         if (shelf && !(existing.shelves || []).includes(shelf)) existing.shelves = [...(existing.shelves || []), shelf];
@@ -257,8 +266,9 @@
     const nNew = fics.filter((f) => f.newChapters > 0).length;
     if (nNew) tabs.splice(1, 0, ["new", "Nouveaux chapitres"]);
     if (view.tab === "new" && !nNew) view.tab = "all";
+    tabs.push(["authors", "👤 Auteurs"]);
     $("tabs").innerHTML = tabs.map(([k, label]) => {
-      const n = fics.filter((f) => inTab(f, k)).length;
+      const n = k === "authors" ? authors.length : fics.filter((f) => inTab(f, k)).length;
       return `<button data-tab="${k}" class="${view.tab === k ? "on" : ""}">${esc(label)}<small>${n}</small></button>`;
     }).join("");
 
@@ -305,8 +315,32 @@
     </article>`;
   }
 
+  function authorFics(a) {
+    const name = (a.name || "").toLowerCase();
+    return fics.filter((f) => f.site === a.site && (f.author || "").toLowerCase().split(/,\s*/).includes(name));
+  }
+
+  function renderAuthors() {
+    const q = view.q.toLowerCase();
+    const list = authors.filter((a) => !q || a.name.toLowerCase().includes(q))
+      .sort((a, b) => a.name.localeCompare(b.name, "fr", { sensitivity: "base" }));
+    $("list").innerHTML = list.map((a) => {
+      const n = authorFics(a).length;
+      return `<article class="card author" data-author="${esc(a.site + ":" + a.id)}">
+        <div class="t">${esc(a.name)}</div>
+        <div class="badges"><span class="b">${esc(P.SITES[a.site])}</span>${n ? `<span class="b shelf">${n} fic${n > 1 ? "s" : ""} dans ta liste</span>` : ""}</div>
+        <div class="actions"><button class="ghost" data-au="remove">Retirer</button><button class="primary" data-au="works">Ses histoires</button></div>
+      </article>`;
+    }).join("");
+    const empty = $("empty");
+    empty.hidden = list.length > 0;
+    empty.textContent = authors.length ? "Aucun auteur ne correspond." :
+      "Aucun auteur favori.\n\nTouche + et colle le lien de ton compte (FanFiction.net, AO3 ou Wattpad) pour importer tes favoris,\nou le lien de la page d'un auteur.";
+  }
+
   function render() {
     renderFilters();
+    if (view.tab === "authors") return renderAuthors();
     const list = visible();
     $("list").innerHTML = list.map(card).join("");
     const empty = $("empty");
@@ -486,7 +520,7 @@
         f.summary = $("eSummary").value.trim();
         const url = P.canonical($("eUrl").value.trim());
         if (url && url !== f.url) {
-          if (fics.some((x) => x !== f && x.url === url)) toast("Ce lien est déjà dans ta liste.");
+          if (fics.some((x) => x !== f && sameStory(x.url, url))) toast("Ce lien est déjà dans ta liste.");
           else { f.url = url; f.site = P.siteOf(url); }
         }
         if (!f.fetchedAt) f.fetchedAt = Date.now();
@@ -537,7 +571,7 @@
   // ------------------------------------------------------------ sauvegarde
 
   function exportData() {
-    const json = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), fics }, null, 1);
+    const json = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), fics, authors, accounts: settings.accounts }, null, 1);
     const name = "mes-fanfics-" + new Date().toISOString().slice(0, 10) + ".json";
     if (native) { Android.exportFile(name, json); return; }
     const a = document.createElement("a");
@@ -555,7 +589,7 @@
     let added = 0, merged = 0;
     for (const f of list) {
       if (!f || !f.url) continue;
-      const cur = fics.find((x) => x.url === f.url);
+      const cur = findStory(f.url);
       if (cur) {
         // Restaurer = la sauvegarde fait foi pour les fanfics qu'elle contient.
         Object.assign(cur, f, { id: cur.id });
@@ -565,6 +599,8 @@
         added++;
       }
     }
+    if (d && Array.isArray(d.authors)) for (const a of d.authors) addAuthor(a);
+    if (d && Array.isArray(d.accounts)) for (const a of d.accounts) if (!settings.accounts.some((x) => x.url === a.url)) settings.accounts.push(a);
     save();
     render();
     closeSheets();
@@ -636,6 +672,18 @@
     if (b) { view.tab = b.dataset.tab; render(); }
   });
   $("list").addEventListener("click", (e) => {
+    const au = e.target.closest("[data-author]");
+    if (au) {
+      const a = authors.find((x) => x.site + ":" + x.id === au.dataset.author);
+      const b = e.target.closest("[data-au]");
+      if (!a) return;
+      if (b && b.dataset.au === "remove") {
+        if (!confirm(`Retirer ${a.name} de tes auteurs favoris ?`)) return;
+        authors = authors.filter((x) => x !== a);
+        save(); render();
+      } else window.FanficsApp.openAuthor(a);
+      return;
+    }
     const c = e.target.closest(".card");
     if (c) { editing = false; openDetail(c.dataset.id); }
   });
@@ -650,7 +698,7 @@
   $("addGo").addEventListener("click", () => {
     const text = $("addText").value;
     addLinks(text, $("addStatus").value, $("addShelf").value.trim());
-    if (P.extractUrls(text).length) closeSheets();
+    if (P.extractUrls(text).length) $("addSheet").hidden = true; // pas les autres : la question « ton compte ? » peut s'ouvrir
   });
 
   $("detailBody").addEventListener("click", (e) => {
@@ -711,8 +759,8 @@
   // ------------------------------------------------------------ démarrage
 
   // Ajout depuis la recherche : les infos sont déjà connues, pas besoin de retélécharger.
-  function addFromInfo(info, status) {
-    const existing = fics.find((f) => f.url === info.url);
+  function addFromInfo(info, status, quiet) {
+    const existing = findStory(info.url);
     if (existing) return existing;
     const fic = Object.assign({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
@@ -721,15 +769,25 @@
     }, info);
     fics.unshift(fic);
     save();
-    render();
+    if (!quiet) render(); // import en masse : un seul affichage à la fin
     return fic;
+  }
+
+  function addAuthor(a) {
+    if (!a || !a.site || !a.id || authors.some((x) => x.site === a.site && x.id === a.id)) return false;
+    authors.push({ site: a.site, id: a.id, name: a.name || a.id, url: a.url, addedAt: a.addedAt || Date.now() });
+    save();
+    return true;
   }
 
   window.FanficsApp = {
     addLinks, addFromInfo, importData, download, cacheGet, cachePut, save, flush, render, toast, esc, fmt,
     setLastRead, openDetail, backHandlers, settings, native,
     get fics() { return fics; },
+    get authors() { return authors; },
+    addAuthor, view, showProgress,
     find: (id) => fics.find((f) => f.id === id),
+    findStory,
   };
 
   load();

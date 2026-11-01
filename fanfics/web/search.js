@@ -7,13 +7,14 @@
   const $ = (id) => document.getElementById(id);
   const esc = A.esc;
 
-  const state = { site: "ao3", q: "", page: 1, results: [], next: false, token: 0, loading: false };
+  // loader : quand il est défini, la vue montre une liste fournie (histoires d'un auteur) au lieu d'une recherche.
+  const state = { site: "ao3", q: "", page: 1, results: [], next: false, token: 0, loading: false, loader: null };
 
   function opts() {
     return state.site === "ao3" ? { language: $("sLang").value, sort: $("sSort").value, complete: $("sComplete").checked } : {};
   }
 
-  function inList(r) { return A.fics.find((f) => f.url === r.url); }
+  function inList(r) { return A.findStory(r.url); }
 
   function card(r, i) {
     const b = [];
@@ -48,7 +49,8 @@
     else if (state.error) html += `<p class="rwait">${esc(state.error)}</p>`;
     else if (state.q && !state.results.length) html += `<p class="rwait">Aucun résultat.</p>`;
     else if (state.next) html += `<div class="actions" style="justify-content:center"><button class="ghost" data-s="more">Plus de résultats</button></div>`;
-    if (!state.q && !state.results.length && !state.loading) html = `<p class="rwait">Tape un titre, un fandom, un personnage, un couple ou un tag.<br><small>Ex. « Drarry slow burn », « Naruto », « enemies to lovers ».</small></p>`;
+    if (state.loader && !state.results.length && !state.loading && !state.error) html = `<p class="rwait">Aucune histoire publiée.</p>`;
+    else if (!state.q && !state.results.length && !state.loading) html = `<p class="rwait">Tape un titre, un fandom, un personnage, un couple ou un tag.<br><small>Ex. « Drarry slow burn », « Naruto », « enemies to lovers ».</small></p>`;
     box.innerHTML = html;
   }
 
@@ -66,7 +68,7 @@
   }
 
   async function run(more) {
-    const q = $("sQuery").value.trim();
+    const q = state.loader ? state.q : $("sQuery").value.trim();
     if (!q) return;
     const t = ++state.token;
     if (!more) { state.q = q; state.page = 1; state.results = []; state.next = false; }
@@ -75,10 +77,13 @@
     state.error = "";
     render();
     try {
-      const url = S.url(state.site, state.q, opts(), state.page);
-      const body = await A.download(url, state.site, S.readySelector(state.site));
+      let r;
+      if (state.loader) r = await state.loader(state.page);
+      else {
+        const url = S.url(state.site, state.q, opts(), state.page);
+        r = S.parse(state.site, await A.download(url, state.site, S.readySelector(state.site)));
+      }
       if (t !== state.token) return;
-      const r = S.parse(state.site, body);
       const fresh = r.results.filter((x) => !state.results.some((y) => y.url === x.url));
       state.results.push(...fresh);
       state.next = r.next && fresh.length > 0;
@@ -101,7 +106,27 @@
     return o;
   }
 
+  function setMode(title) {
+    $("sQuery").hidden = $("sGo").hidden = !!title;
+    $("sTitle").hidden = !title;
+    $("sTitle").textContent = title || "";
+    document.querySelector("#searchView .sopts").hidden = !!title;
+  }
+
+  // Liste fournie par loader(page) -> {results, next} ; ex. histoires d'un auteur.
+  function openList(title, loader) {
+    state.loader = loader;
+    state.q = title;
+    state.results = [];
+    state.next = false;
+    setMode(title);
+    $("searchView").hidden = false;
+    run(false);
+  }
+
   function open() {
+    if (state.loader) { state.loader = null; state.q = ""; state.results = []; state.error = ""; $("sQuery").value = ""; }
+    setMode("");
     $("searchView").hidden = false;
     render();
     setTimeout(() => $("sQuery").focus(), 50);
@@ -145,4 +170,5 @@
 
   A.backHandlers.push(close);
   A.openSearch = open;
+  A.openList = openList;
 })();

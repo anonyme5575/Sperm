@@ -76,6 +76,9 @@
       </select>
     </label>
     <button class="item" id="mClearCache" style="margin-top:10px">Effacer les chapitres et traductions gardés sur le téléphone</button>
+    <div class="sec">Mes comptes</div>
+    <div id="accounts"></div>
+    <p class="hint">Colle le lien de ton profil FanFiction.net, AO3 ou Wattpad avec le bouton + pour importer tes favoris.</p>
     <p class="hint" id="stats"></p>
     <div class="actions"><button class="ghost" data-close>Fermer</button></div>
   </div>
@@ -102,6 +105,7 @@
 <div id="searchView" class="view" hidden>
   <div class="rtop">
     <button class="icon" id="sBack" title="Retour">←</button>
+    <div class="rtitle" id="sTitle" hidden></div>
     <input id="sQuery" type="search" placeholder="Chercher une fanfic…" autocomplete="off" enterkeyhint="search">
     <button class="icon" id="sGo" title="Chercher">🔍</button>
   </div>
@@ -124,6 +128,17 @@
   <div id="sResults"></div>
 </div>
 
+<!-- Lien de profil -->
+<div id="profileSheet" class="sheet" hidden>
+  <div class="panel">
+    <h2 id="pfTitle"></h2>
+    <p class="hint" id="pfHint"></p>
+    <button class="item" id="pfMine"></button>
+    <button class="item" id="pfAuthor">Ajouter à mes auteurs favoris</button>
+    <div class="actions"><button class="ghost" data-close>Annuler</button></div>
+  </div>
+</div>
+
 <datalist id="shelves"></datalist>
 <div id="toast" hidden></div>
 <input id="fileIn" type="file" accept="application/json,.json" hidden>
@@ -133,5 +148,6 @@
 <script src="translate.js"></script>
 <script src="reader.js"></script>
 <script src="search.js"></script>
+<script src="accounts.js"></script>
 </body>
 </html>

@@ -28,6 +28,21 @@ App Android pour ranger les fanfics que tu aimes à partir de leurs liens.
 - Sur AO3 : filtre par langue, « Terminées » seulement, tri par kudos, mise à jour, vues ou longueur.
 - Chaque résultat : **+ Ajouter** à ta liste, ou **📖 Lire** tout de suite. Les résumés étrangers sont traduits.
 
+## Importer mes favoris, mes auteurs favoris
+
+Touche **+** et colle le lien de ton profil, ou partage ta page de profil vers l'app. L'app demande : **« C'est mon compte »** (importer tes favoris) ou **« Ajouter à mes auteurs favoris »** (le lien est celui d'un auteur).
+
+| Site | Lien du profil | Ce qui est importé |
+|---|---|---|
+| FanFiction.net | `fanfiction.net/u/123456/Pseudo` | Histoires favorites (étagère « Favoris FanFiction.net ») et auteurs favoris |
+| AO3 | `archiveofourown.org/users/Pseudo` | Marque-pages, toutes les pages (étagère « Marque-pages AO3 »). Les auteurs suivis (abonnements) sont privés sur AO3 : impossible à lire sans connexion. |
+| Wattpad | `wattpad.com/user/Pseudo` | Histoires de tes listes de lecture et comptes suivis |
+
+- Les histoires importées sont marquées ★ Favorites. Celles déjà dans ta liste ne sont pas dupliquées.
+- Menu ⋮ > **Mes comptes** > **Synchroniser** : ajoute ce que tu as mis en favori depuis le dernier import.
+- Onglet **👤 Auteurs** : tes auteurs favoris ; **Ses histoires** montre tout ce qu'un auteur a publié, à ajouter ou lire directement.
+- Seules les informations publiques sont lues : un profil ou des marque-pages privés ne peuvent pas être importés.
+
 ## Installation
 
 Copie `dist/mes-fanfics.apk` sur le téléphone, ouvre-le et autorise l'installation depuis des sources inconnues. Android 8 ou plus.
@@ -55,6 +70,6 @@ node fanfics/tests/test.cjs   # tests dans Chromium (Playwright)
 ```
 
 - `web/parsers.js` : reconnaissance des liens, lecture des pages, des chapitres et des résultats de recherche de chaque site.
-- `web/reader.js` : le lecteur. `web/translate.js` : la traduction. `web/search.js` : la recherche.
+- `web/reader.js` : le lecteur. `web/translate.js` : la traduction. `web/search.js` : la recherche. `web/accounts.js` : comptes, import des favoris, auteurs.
 - `web/app.js` : l'interface. `android/.../MainActivity.java` : télécharge les pages, garde la liste dans `fanfics.json`, reçoit les partages.
 - Les pages de `tests/pages/` sont des reconstitutions de la structure de chaque site, pas des copies récentes.

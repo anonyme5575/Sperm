@@ -641,7 +641,7 @@
   // ================================================================ recherche
 
   // ---- Recherche précise : opérateurs, filtrage strict et tri par pertinence (côté app).
-  const norm = (x) => String(x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const norm = (x) => String(x || "").toLowerCase().replace(/[×✕✖]/g, "x").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
   // "phrase exacte", -exclu, #tag, @auteur, mots (tous requis).
   function parseQuery(q) {
@@ -659,9 +659,11 @@
   }
 
   // Garde les résultats qui respectent tout, triés par pertinence. f : {language, complete, mature}
-  function refine(results, q, f) {
+  // minWords : nombre de mots simples requis (par défaut tous) ; sert aux « résultats proches ».
+  function refine(results, q, f, minWords) {
     const o = parseQuery(q);
     f = f || {};
+    const need = minWords == null ? o.words.length : minWords;
     const out = [];
     for (const r of results) {
       const title = norm(r.title), tags = (r.tags || []).map(norm), author = norm(r.author), desc = norm(r.summary);
@@ -673,7 +675,7 @@
       if (!o.phrases.every((ph) => all.includes(ph))) continue;
       if (!o.tags.every((t) => tags.some((x) => x === t || x.replace(/[\s_-]/g, "") === t.replace(/[\s_-]/g, "")))) continue;
       if (!o.authors.every((a) => author.includes(a))) continue;
-      if (!o.words.every((w) => all.includes(w))) continue;
+      if (o.words.filter((w) => all.includes(w)).length < need) continue;
       const qn = [...o.phrases, ...o.words].join(" ");
       let score = title === qn ? 100 : qn && title.includes(qn) ? 50 : 0;
       const tw = title.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
@@ -692,6 +694,15 @@
 
   const Search = {
     parseQuery, refine,
+    // Adresses de recherche Wattpad, essayées dans l'ordre : recherche actuelle du site (v4), puis ancienne (v3).
+    wattpadUrls(q, page) {
+      const e = encodeURIComponent(parseQuery(q).api), off = ((page || 1) - 1) * 50;
+      const f = "stories(id,title,user(name),description,numParts,completed,tags,voteCount,mature,language(name)),total,nextUrl";
+      return [
+        "https://www.wattpad.com/v4/search/stories/?query=" + e + "&limit=50&offset=" + off + "&mature=true&free=1&paid=1&fields=" + f,
+        "https://www.wattpad.com/api/v3/stories?query=" + e + "&limit=50&offset=" + off + "&fields=" + f,
+      ];
+    },
     sites: ["ao3", "ffn", "wattpad"],
 
     url(site, q, o, page) {

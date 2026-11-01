@@ -107,6 +107,7 @@
   }
 
   function emptyText() {
+    if (state.note) return "";
     if (state.mode === "list") return state.list.sections[state.list.section].empty || "Rien de public ici.";
     if (state.mode === "accounts") return state.q ? `Aucun compte « ${state.q} » trouvé.` : "";
     return state.q ? "Aucun résultat." : "";
@@ -115,6 +116,7 @@
   function render() {
     const box = $("sResults");
     let html = state.mode === "list" && state.list.hero ? state.list.hero() : "";
+    if (state.note && state.mode === "stories") html += `<p class="hint tip">${esc(state.note)}</p>`;
     html += state.results.map(card).join("");
     if (state.loading) html += `<div class="rwait"><div class="spinner"></div>${state.mode === "accounts" ? "Recherche du compte sur les trois sites…" : "Chargement…"}${state.site === "ffn" || state.mode !== "stories" ? "<br><small>FanFiction.net peut prendre quelques secondes.</small>" : ""}</div>`;
     else if (state.error) html += `<p class="rwait">${esc(state.error)}</p>`;
@@ -175,7 +177,7 @@
       if (!more) state.q = q;
     }
     const t = ++state.token;
-    if (!more) { state.page = 1; state.results = []; state.next = false; }
+    if (!more) { state.page = 1; state.results = []; state.next = false; state.note = ""; }
     else state.page++;
     state.loading = true;
     state.error = "";
@@ -209,18 +211,44 @@
 
   // Wattpad renvoie des résultats approximatifs : on filtre strictement et on trie ici,
   // en lisant jusqu'à 4 pages pour avoir assez de résultats vraiment pertinents.
+  let wpWorking = 0; // adresse de recherche Wattpad qui a répondu la dernière fois
+  async function wattpadPage(page) {
+    const urls = S.wattpadUrls(state.q, page);
+    const order = [wpWorking, ...urls.keys()].filter((v, i, a) => a.indexOf(v) === i);
+    let last = null;
+    for (const k of order) {
+      try {
+        const body = await A.download(urls[k], "wattpad");
+        const d = JSON.parse(body);
+        if (!Array.isArray(d.stories)) throw new Error("réponse inattendue");
+        wpWorking = k;
+        return S.parse("wattpad", body);
+      } catch (e) { last = e; }
+    }
+    throw last;
+  }
+
   async function wattpadPrecise(t) {
     const f = { language: $("wLang").value, complete: $("wComplete").checked, noMature: !$("wMature").checked };
-    const kept = [];
+    const raw = [];
     let next = true;
-    for (let i = 0; i < 4 && next && kept.length < 15; i++) {
+    for (let i = 0; i < 4 && next && S.refine(raw, state.q, f).length < 15; i++) {
       if (i) state.page++;
-      const raw = S.parse("wattpad", await A.download(S.url("wattpad", state.q, {}, state.page), "wattpad"));
+      const r = await wattpadPage(state.page);
       if (t !== state.token) return { results: [], next: false };
-      kept.push(...S.refine(raw.results, state.q, f));
-      next = raw.next;
+      raw.push(...r.results);
+      next = r.next;
     }
-    return { results: S.refine(kept, state.q, f), next };
+    const exact = S.refine(raw, state.q, f);
+    state.note = "";
+    if (exact.length || !raw.length) return { results: exact, next };
+    // Rien ne contient tous les mots : on montre les plus proches, en le disant.
+    const words = S.parseQuery(state.q).words.length;
+    const near = words > 1 ? S.refine(raw, state.q, f, Math.ceil(words / 2)) : [];
+    state.note = near.length
+      ? `Aucune histoire ne contient tous les mots. Résultats proches (Wattpad en a renvoyé ${raw.length}) :`
+      : `Wattpad a renvoyé ${raw.length} histoires, mais aucune ne correspond (filtres compris).`;
+    return { results: near, next };
   }
 
   function info(r) {

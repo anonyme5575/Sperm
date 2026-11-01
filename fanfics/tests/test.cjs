@@ -230,6 +230,16 @@ async function test(name, fn) {
     assert.strictEqual(await ev(() => Parsers.Search.parseQuery('"a b" #t @u -x mot').api), "mot a b t");
   });
 
+  await test("recherche Wattpad précise : « Luffy dxd » (D×D, tags collés, résultats proches)", async () => {
+    const R = (q, f, min) => ev(([b, q, f, min]) => Parsers.Search.refine(Parsers.Search.parse("wattpad", b).results, q, f, min).map((x) => x.title), [page("wattpad-luffy.json"), q, f || {}, min]);
+    assert.deepStrictEqual((await R("Luffy dxd")).sort(), ["Le Roi des Pirates à Kuoh", "The Straw Hat Devil (Luffy x High School D×D)"]);
+    assert.deepStrictEqual(await R("luffy dxd zoro"), []);
+    assert.strictEqual((await R("luffy dxd zoro", {}, 2)).length, 2); // proches : 2 mots sur 3
+    const urls = await ev(() => Parsers.Search.wattpadUrls("Luffy dxd", 2));
+    assert.match(urls[0], /\/v4\/search\/stories\/\?query=luffy%20dxd&limit=50&offset=50/);
+    assert.match(urls[1], /\/api\/v3\/stories\?query=luffy%20dxd/);
+  });
+
   await test("recherche Wattpad : résultats", async () => {
     const r = await ev((b) => Parsers.Search.parse("wattpad", b), page("wattpad-search.json"));
     assert.strictEqual(r.next, true);
@@ -342,6 +352,7 @@ async function test(name, fn) {
     if (routes[url]) return routes[url];
     // Wattpad : plusieurs adresses d'API possibles ; seules certaines répondent.
     const wp = [
+      [/\/v4\/search\/stories\/\?query=luffy/, { ok: true, status: 200, body: page("wattpad-luffy.json") }],
       [/\/api\/v3\/stories\?query=coeur/, { ok: true, status: 200, body: page("wattpad-search-2.json") }],
       [/\/api\/v3\/users\/jose\?/, { ok: true, status: 200, body: page("wattpad-user.json").replace("luna_ecrit", "jose") }],
       [/\/api\/v3\/users\/jose\/stories\?/, { ok: true, status: 200, body: page("wattpad-search.json") }],
@@ -923,10 +934,24 @@ async function test(name, fn) {
     assert.deepStrictEqual((await app.$$eval(".sres .t", (e) => e.map((x) => x.textContent))).sort(), ["Coeur de Glace", "Le coeur des glaces"]);
     await app.check("#wComplete");
     await app.selectOption("#wLang", "English");
-    await app.waitForSelector(".rwait");
-    assert.match(await app.textContent("#sResults"), /Aucun résultat/);
+    await app.waitForFunction(() => /aucune ne correspond/.test(document.getElementById("sResults").textContent));
     await app.selectOption("#wLang", "");
     await app.uncheck("#wComplete");
+    await app.click("#sSite [data-site=ao3]");
+    await app.evaluate(() => window.__back());
+  });
+
+  await test("app : Wattpad « Luffy dxd », puis résultats proches annoncés", async () => {
+    await app.click("#btnSearch");
+    await app.click("#sSite [data-site=wattpad]");
+    await app.fill("#sQuery", "Luffy dxd");
+    await app.press("#sQuery", "Enter");
+    await app.waitForSelector(".sres .t");
+    assert.deepStrictEqual((await app.$$eval(".sres .t", (e) => e.map((x) => x.textContent))).length, 2);
+    await app.fill("#sQuery", "Luffy dxd sanji");
+    await app.press("#sQuery", "Enter");
+    await app.waitForFunction(() => /Résultats proches/.test(document.getElementById("sResults").textContent));
+    assert.strictEqual(await app.$$eval(".sres", (e) => e.length), 2);
     await app.click("#sSite [data-site=ao3]");
     await app.evaluate(() => window.__back());
   });

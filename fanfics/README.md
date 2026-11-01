@@ -28,6 +28,7 @@ Wattpad renvoie des résultats approximatifs : l'app les filtre et les trie elle
 - Tous les mots sont requis (titre, tags, auteur ou résumé), accents ignorés.
 - `"phrase exacte"`, `#tag` (ex. `#enemiestolovers`, tirets et espaces ignorés), `@auteur`, `-mot` pour exclure.
 - Filtres : langue, terminées seulement, contenu mature ou non.
+- Recherche actuelle de Wattpad (v4) d'abord, ancienne (v3) en secours. « D×D » = « DxD ». Si rien ne contient tous les mots, les résultats les plus proches sont montrés, annoncés comme tels.
 - Tri : titre exact, puis mots entiers dans un titre court, puis tags, auteur, résumé, puis popularité.
 
 ## Rechercher des fanfics

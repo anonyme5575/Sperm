@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16141a">
+<title>Mes Fanfics</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1>Mes Fanfics</h1>
+    <button id="btnUpdates" class="icon" title="Chercher les nouveaux chapitres">⟳</button>
+    <button id="btnMenu" class="icon" title="Menu">⋮</button>
+  </div>
+  <input id="search" type="search" placeholder="Chercher : titre, auteur, fandom, tag, note…" autocomplete="off">
+  <nav id="tabs"></nav>
+  <div class="filters">
+    <select id="fFandom"></select>
+    <select id="fShelf"></select>
+    <select id="fSort">
+      <option value="added">Ajout récent</option>
+      <option value="updated">Mise à jour récente</option>
+      <option value="title">Titre</option>
+      <option value="author">Auteur</option>
+      <option value="stars">Ma note</option>
+      <option value="words">Longueur</option>
+    </select>
+  </div>
+  <div id="progress" hidden></div>
+</header>
+
+<main id="list"></main>
+<p id="empty" hidden></p>
+
+<button id="fab" title="Ajouter des liens">+</button>
+
+<!-- Ajout -->
+<div id="addSheet" class="sheet" hidden>
+  <div class="panel">
+    <h2>Ajouter des fanfics</h2>
+    <p class="hint">Colle un ou plusieurs liens (AO3, FanFiction.net, Wattpad ou n'importe quel site). Tu peux aussi partager une page vers l'app depuis ton navigateur.</p>
+    <textarea id="addText" rows="6" placeholder="https://archiveofourown.org/works/…"></textarea>
+    <label class="row">Ranger dans
+      <select id="addStatus"></select>
+    </label>
+    <label class="row">Étagère
+      <input id="addShelf" list="shelves" placeholder="facultatif">
+    </label>
+    <div class="actions">
+      <button class="ghost" data-close>Annuler</button>
+      <button id="addGo" class="primary">Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<!-- Fiche -->
+<div id="detail" class="sheet" hidden>
+  <div class="panel tall" id="detailBody"></div>
+</div>
+
+<!-- Menu -->
+<div id="menu" class="sheet" hidden>
+  <div class="panel">
+    <h2>Menu</h2>
+    <button class="item" id="mExport">Sauvegarder ma liste (fichier)</button>
+    <button class="item" id="mImport">Restaurer une sauvegarde</button>
+    <button class="item" id="mRefreshAll">Relire les infos de toutes les fanfics</button>
+    <p class="hint" id="stats"></p>
+    <div class="actions"><button class="ghost" data-close>Fermer</button></div>
+  </div>
+</div>
+
+<datalist id="shelves"></datalist>
+<div id="toast" hidden></div>
+<input id="fileIn" type="file" accept="application/json,.json" hidden>
+
+<script src="parsers.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

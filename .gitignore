@@ -6,3 +6,6 @@ moniteur/**/bin/
 moniteur/**/obj/
 dist/moniteur-pc.apk
 __pycache__/
+fanfics/android/build/
+fanfics/tests/*.png
+node_modules/

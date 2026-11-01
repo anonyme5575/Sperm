@@ -675,7 +675,9 @@ async function test(name, fn) {
 
   await test("app : chercher un compte par son pseudo sur les trois sites", async () => {
     await app.click("#btnAccounts");
-    assert.match(await app.textContent("#sResults"), /Tape le pseudo d'un compte/);
+    // L'écran Auteurs s'ouvre sur mes auteurs favoris.
+    assert.match(await app.textContent("#sResults .sechead"), /Mes auteurs favoris/);
+    assert.deepStrictEqual(await app.$$eval(".person .t", (e) => e.map((x) => x.textContent)), ["Luna Writes", "Wanderer", "Wren"]);
     await app.fill("#sQuery", "Moi");
     await app.press("#sQuery", "Enter");
     await app.waitForFunction(() => document.querySelectorAll(".person").length === 2 && !document.querySelector(".spinner"));
@@ -770,11 +772,74 @@ async function test(name, fn) {
     await app.evaluate(() => window.__back());
   });
 
+  await test("parsers : lien du profil de l'auteur", async () => {
+    const f = await app.evaluate(() => ["Le Dernier Hiver", "The Long Road Home", "Stars Fall"].map((t) => window.FanficsApp.fics.find((x) => x.title === t).authorUrl));
+    assert.deepStrictEqual(f, [
+      "https://archiveofourown.org/users/Plume/pseuds/Plume",
+      "https://www.fanfiction.net/u/12345/Wanderer",
+      "https://archiveofourown.org/users/Wren/pseuds/Wren",
+    ]);
+  });
+
+  await test("app : fiche — « ☆ Auteur favori » enregistre l'auteur", async () => {
+    await app.click("#tabs [data-tab=all]");
+    await app.click("#list .card:has-text('Le Dernier Hiver')");
+    assert.strictEqual(await app.textContent("#detail [data-act=favAuthor]"), "☆ Auteur favori");
+    await app.click("#detail [data-act=favAuthor]");
+    assert.strictEqual(await app.textContent("#detail [data-act=favAuthor]"), "✓ Auteur favori");
+    const a = await app.evaluate(() => window.FanficsApp.authors.find((x) => x.name === "Plume"));
+    assert.deepStrictEqual([a.site, a.id, a.url], ["ao3", "Plume", "https://archiveofourown.org/users/Plume"]);
+    // Toucher le nom de l'auteur ouvre son profil.
+    await app.click("#detail [data-act=authorProfile]");
+    await app.waitForFunction(() => document.getElementById("sTitle").textContent === "Plume");
+    assert.match(await app.textContent("#sResults .hero"), /✓ Auteur favori/);
+    await app.evaluate(() => window.__back());
+  });
+
+  await test("app : ancienne fanfic FanFiction.net sans lien d'auteur -> relue puis enregistrée", async () => {
+    await app.evaluate(() => { const f = window.FanficsApp.fics.find((x) => x.title === "The Long Road Home"); delete f.authorUrl; });
+    await app.click("#list .card:has-text('The Long Road Home')");
+    assert.strictEqual(await app.textContent("#detail [data-act=favAuthor]"), "✓ Auteur favori"); // reconnu par son nom
+    await app.click("#detail [data-act=favAuthor]");
+    await app.waitForFunction(() => !window.FanficsApp.authors.some((x) => x.name === "Wanderer"));
+    assert.strictEqual(await app.evaluate(() => window.FanficsApp.fics.find((x) => x.title === "The Long Road Home").authorUrl), "https://www.fanfiction.net/u/12345/Wanderer");
+    await app.click("#detail [data-act=favAuthor]");
+    await app.waitForFunction(() => window.FanficsApp.authors.some((x) => x.name === "Wanderer"));
+    await app.evaluate(() => window.__back());
+  });
+
+  await test("app : l'écran Auteurs liste mes favoris ; effacer la recherche les ramène", async () => {
+    await app.click("#btnAccounts");
+    assert.deepStrictEqual(await app.$$eval(".person .t", (e) => e.map((x) => x.textContent)), ["Luna Writes", "Plume", "Wanderer", "Wren"]);
+    await app.fill("#sQuery", "Moi");
+    await app.press("#sQuery", "Enter");
+    await app.waitForFunction(() => document.querySelectorAll(".person").length === 2 && !document.querySelector(".spinner"));
+    await app.fill("#sQuery", "");
+    await app.waitForSelector(".sechead");
+    assert.strictEqual(await app.$$eval(".person", (e) => e.length), 4);
+    await app.evaluate(() => window.__back());
+  });
+
+  await test("app : recherche — auteur favori signalé, nom cliquable", async () => {
+    await app.click("#btnSearch");
+    await app.fill("#sQuery", "drarry");
+    await app.press("#sQuery", "Enter");
+    await app.waitForSelector(".sres");
+    assert.ok(await app.$(".sres[data-i='0'] .fav-mini")); // Wren est favori
+    assert.strictEqual(await app.$(".sres[data-i='1'] .fav-mini"), null);
+    await app.click(".sres[data-i='0'] [data-s=author]");
+    await app.waitForFunction(() => document.getElementById("sTitle").textContent === "Wren");
+    assert.strictEqual(await app.evaluate(() => window.__back()), true);
+    assert.strictEqual(await app.isVisible("#sQuery"), true);
+    await app.evaluate(() => window.__back());
+  });
+
   await app.click("#tabs [data-tab=all]");
   await app.waitForTimeout(3500); // laisse partir le message
   await app.screenshot({ path: path.join(__dirname, "capture.png") });
   await app.click("#list .card:has-text('Le Dernier Hiver')");
-  await app.screenshot({ path: path.join(__dirname, "capture-fiche.png"), fullPage: true });
+  await app.waitForTimeout(500);
+  await app.screenshot({ path: path.join(__dirname, "capture-fiche.png") });
   await app.evaluate(() => window.__back());
   await app.click("#list .card:has-text('Stars Fall')");
   await app.click("#detail [data-act=read]");

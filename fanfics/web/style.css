@@ -289,3 +289,16 @@ dl.meta dd { margin: 0; word-break: break-word; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------------------------------------------------------------- auteurs favoris */
+.author-link { font-size: inherit; color: var(--text); text-decoration: underline; text-decoration-color: rgba(201, 155, 255, .5); padding: 0; }
+.card .a .author-link { color: var(--muted); }
+.chip-fav { margin-top: 8px; border: 1px solid rgba(255, 191, 90, .35); background: rgba(255, 191, 90, .08); color: var(--warn);
+  border-radius: 999px; padding: 6px 13px; font-size: 13px; font-weight: 650; }
+.chip-fav.on { background: linear-gradient(135deg, #ffbf5a, #ff5fa8); color: #1a0f1f; border-color: transparent; box-shadow: 0 6px 18px -6px rgba(255, 140, 120, .8); }
+.fav-mini { color: var(--warn); }
+.sechead { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 8px; margin: 4px 2px -2px; }
+.sechead b { font-size: 18px; font-weight: 800; letter-spacing: -.01em; }
+.sechead span { color: var(--muted); font-size: 13px; }
+.tip { grid-column: 1 / -1; text-align: center; margin-top: 4px; }
+#sTitle[hidden] { display: none; }

@@ -35,6 +35,13 @@ App Android pour ranger les fanfics que tu aimes à partir de leurs liens.
 - **Découvrir** : chercher des histoires. **Comptes** : chercher un pseudo. **+** : ajouter des liens. **Réglages** : traduction, sauvegarde, comptes.
 - Lecteur : trois ambiances (🌙 nuit, ☕ sépia, ☀️ papier), barre de progression, toucher le texte pour lire en plein écran.
 
+## Mes auteurs favoris
+
+- Dans la fiche d'une fanfic : **☆ Auteur favori** à côté du nom de l'auteur l'enregistre (✓ pour le retirer). Toucher son nom ouvre son profil.
+- Bouton **Auteurs** en bas : la liste de tes auteurs favoris, chacun avec **Voir le profil** (ses histoires, favoris…). Au-dessus, la recherche par pseudo pour en trouver d'autres.
+- Dans les résultats de recherche, ★ à côté d'un auteur signale qu'il est dans tes favoris ; son nom ouvre son profil.
+- Pour une ancienne fanfic FanFiction.net, l'app relit la page une fois pour trouver le profil de l'auteur.
+
 ## Chercher un compte par son pseudo
 
 **Comptes**, tape un pseudo : l'app le cherche en même temps sur AO3, FanFiction.net et Wattpad et montre les comptes trouvés. **Tout voir** ouvre sa page avec tout ce qui est public :

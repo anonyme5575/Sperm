@@ -99,6 +99,12 @@
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
 
+  // Lien du profil de l'auteur (premier auteur s'il y en a plusieurs), en adresse complète.
+  const hrefOf = (root, sel, base) => {
+    const a = root && root.querySelector(sel);
+    if (!a || !a.getAttribute("href")) return "";
+    try { return new URL(a.getAttribute("href"), base).toString(); } catch (e) { return ""; }
+  };
   const clean = (s) => String(s || "").replace(/\s+/g, " ").trim();
   const num = (s) => {
     const d = String(s || "").replace(/[^\d]/g, "");
@@ -138,6 +144,7 @@
     return {
       title,
       author: texts(preface, "a[rel=author]").join(", ") || (/anonymous/i.test(text(preface, ".byline")) ? "Anonyme" : ""),
+      authorUrl: hrefOf(preface, "a[rel=author]", "https://archiveofourown.org"),
       fandoms: texts(meta, "dd.fandom a.tag"),
       relationships: texts(meta, "dd.relationship a.tag"),
       characters: texts(meta, "dd.character a.tag"),
@@ -187,6 +194,7 @@
     return {
       title: text(top, "b.xcontrast_txt"),
       author: text(top, "a.xcontrast_txt[href^='/u/']"),
+      authorUrl: hrefOf(top, "a[href^='/u/']", "https://www.fanfiction.net"),
       fandoms: fandom ? [fandom] : [],
       relationships: [],
       characters,
@@ -212,6 +220,7 @@
     return {
       title: clean(d.title),
       author: d.user ? clean(d.user.name) : "",
+      authorUrl: d.user && d.user.name ? "https://www.wattpad.com/user/" + encodeURIComponent(d.user.name) : "",
       fandoms: [],
       relationships: [],
       characters: [],
@@ -398,6 +407,7 @@
       site: "ao3", url: canonical(abs(link.getAttribute("href"), "https://archiveofourown.org")),
       title: clean(link.textContent),
       author: texts(li, "h4.heading a[rel=author]").join(", ") || "Anonyme",
+      authorUrl: hrefOf(li, "h4.heading a[rel=author]", "https://archiveofourown.org"),
       fandoms: texts(li, "h5.fandoms a.tag"),
       relationships: texts(li, "li.relationships a.tag"),
       characters: texts(li, "li.characters a.tag"),
@@ -414,7 +424,7 @@
   }
 
   // Une fanfic dans une liste FanFiction.net (recherche, favoris ou histoires d'un profil).
-  function ffnZ(z, defaultAuthor) {
+  function ffnZ(z, defaultAuthor, defaultAuthorUrl) {
     const link = z.querySelector("a.stitle");
     if (!link) return null;
     const statsEl = z.querySelector(".z-padtop2, .xgray");
@@ -433,6 +443,7 @@
       site: "ffn", url: canonical(abs(link.getAttribute("href"), "https://www.fanfiction.net")),
       title: clean(link.textContent) || clean(d.title),
       author: text(z, "a[href^='/u/']") || defaultAuthor || "",
+      authorUrl: hrefOf(z, "a[href^='/u/']", "https://www.fanfiction.net") || defaultAuthorUrl || "",
       fandoms: fandom && !/^Rated:/.test(fandom) ? [fandom] : [],
       relationships: [], characters: [], tags: [], warnings: [],
       rating: (stats.match(/Rated:\s*(?:Fiction\s+)?([A-Z+]+)/) || [, ""])[1],
@@ -458,6 +469,18 @@
       return { site: "ao3", id: m[1], name: decodeURIComponent(m[1]), url: "https://archiveofourown.org/users/" + m[1] };
     if (/wattpad\.com$/.test(host) && (m = u.pathname.match(/^\/user\/([^/?#]+)/)))
       return { site: "wattpad", id: m[1], name: decodeURIComponent(m[1]), url: "https://www.wattpad.com/user/" + m[1] };
+    return null;
+  }
+
+  // Profil de l'auteur d'une fanfic : depuis son lien, sinon deviné d'après son nom (AO3, Wattpad).
+  // FanFiction.net : impossible sans le numéro du profil -> null (il faut relire la fanfic).
+  function authorProfile(f) {
+    const p = f.authorUrl && profileOf(f.authorUrl);
+    if (p) return Object.assign(p, { name: (f.author || "").split(", ")[0] || p.name });
+    const name = (f.author || "").split(", ")[0].trim();
+    if (!name || name === "Anonyme") return null;
+    if (f.site === "ao3") return Object.assign(profileOf("https://archiveofourown.org/users/" + encodeURIComponent(name)), { name });
+    if (f.site === "wattpad") return Object.assign(profileOf("https://www.wattpad.com/user/" + encodeURIComponent(name)), { name });
     return null;
   }
 
@@ -611,7 +634,7 @@
       const owner = clean((doc.title || "").split("|")[0]) || p.name;
       let mine = doc.querySelectorAll("div.z-list.mystories");
       if (!mine.length) mine = doc.querySelectorAll("#st div.z-list, #st_inside div.z-list");
-      return { results: Array.from(mine).map((z) => ffnZ(z, owner)).filter(Boolean), next: false };
+      return { results: Array.from(mine).map((z) => ffnZ(z, owner, p.url)).filter(Boolean), next: false };
     },
   };
 
@@ -664,5 +687,5 @@
     },
   };
 
-  global.Parsers = { SITES, extractUrls, canonical, siteOf, fetchUrl, fromUrl, parse, chapterPair, paragraphsOf, Chapters, Search, Profiles, profileOf, storyKey };
+  global.Parsers = { SITES, extractUrls, canonical, siteOf, fetchUrl, fromUrl, parse, chapterPair, paragraphsOf, Chapters, Search, Profiles, profileOf, storyKey, authorProfile };
 })(typeof window !== "undefined" ? window : globalThis);

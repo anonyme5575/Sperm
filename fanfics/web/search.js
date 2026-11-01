@@ -40,7 +40,7 @@
         ${A.cover(r, "sm")}
         <div class="cbody">
           <div class="t">${esc(r.title)}</div>
-          <div class="a">${r.author ? "par " + esc(r.author) : ""}</div>
+          <div class="a">${r.author ? `par ${P.authorProfile(r) ? `<button class="link author-link" data-s="author">${esc(r.author)}</button>` : esc(r.author)}${A.isFavAuthor(r) ? ` <span class="fav-mini">★</span>` : ""}` : ""}</div>
           ${r.fandoms && r.fandoms.length ? `<div class="f">${esc(r.fandoms.slice(0, 3).join(" · "))}</div>` : ""}
         </div>
       </div>
@@ -105,10 +105,14 @@
     else if (state.error) html += `<p class="rwait">${esc(state.error)}</p>`;
     else if (!state.results.some((r) => r.kind !== "login") && emptyText()) html += `<p class="rwait">${esc(emptyText())}</p>`;
     else if (state.next) html += `<div class="actions" style="justify-content:center"><button class="ghost" data-s="more">Plus de résultats</button></div>`;
-    if (state.mode !== "list" && !state.q && !state.results.length && !state.loading) {
-      html = state.mode === "accounts"
-        ? `<div class="welcome"><div class="big">👤</div><b>Tape le pseudo d'un compte</b><p>L'app le cherche sur AO3, FanFiction.net et Wattpad et te montre tout ce qui est public : ses histoires, ses favoris, ses marque-pages, les auteurs qu'il suit.</p></div>`
-        : `<div class="welcome"><div class="big">✨</div><b>Trouve ta prochaine fanfic</b><p>Un titre, un fandom, un personnage, un couple ou un tag.<br>Ex. « Drarry slow burn », « Naruto », « enemies to lovers ».</p></div>`;
+    if (state.mode === "accounts" && !state.q && !state.loading) {
+      // Écran d'accueil des auteurs : mes auteurs favoris, puis la recherche par pseudo.
+      html = state.results.length
+        ? `<div class="sechead"><b>★ Mes auteurs favoris</b><span>${state.results.length}</span></div>` + state.results.map(card).join("") +
+          `<p class="hint tip">Pour en ajouter : tape un pseudo ci-dessus, ou touche « ☆ Auteur favori » dans la fiche d'une fanfic.</p>`
+        : `<div class="welcome"><div class="big">⭐</div><b>Tes auteurs favoris</b><p>Touche « ☆ Auteur favori » dans la fiche d'une fanfic, ou tape un pseudo ci-dessus : l'app le cherche sur AO3, FanFiction.net et Wattpad et te montre tout ce qui est public (histoires, favoris, marque-pages, auteurs suivis).</p></div>`;
+    } else if (state.mode === "stories" && !state.q && !state.results.length && !state.loading) {
+      html = `<div class="welcome"><div class="big">✨</div><b>Trouve ta prochaine fanfic</b><p>Un titre, un fandom, un personnage, un couple ou un tag.<br>Ex. « Drarry slow burn », « Naruto », « enemies to lovers ».</p></div>`;
     }
     box.innerHTML = html;
   }
@@ -188,7 +192,7 @@
   function info(r) {
     const o = {};
     for (const k of ["url", "site", "title", "author", "fandoms", "relationships", "characters", "tags", "warnings", "rating",
-      "language", "words", "chapters", "chaptersTotal", "complete", "published", "updated", "kudos", "series", "summary"]) o[k] = r[k];
+      "language", "words", "chapters", "chaptersTotal", "complete", "published", "updated", "kudos", "series", "summary", "authorUrl"]) o[k] = r[k];
     return o;
   }
 
@@ -232,11 +236,14 @@
     run(false);
   }
 
+  const favorites = () => A.authors.slice().sort((a, b) => a.name.localeCompare(b.name, "fr", { sensitivity: "base" }))
+    .map((a) => Object.assign({ kind: "author" }, a));
+
   function open(mode) {
     history.length = 0;
     state.mode = mode === "accounts" ? "accounts" : "stories";
     state.q = "";
-    state.results = [];
+    state.results = state.mode === "accounts" ? favorites() : [];
     state.error = "";
     state.loading = false;
     state.token++;
@@ -270,6 +277,11 @@
   $("sBack").addEventListener("click", close);
   $("sGo").addEventListener("click", () => run(false));
   $("sQuery").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.target.blur(); run(false); } });
+  $("sQuery").addEventListener("input", (e) => {
+    if (state.mode === "accounts" && !e.target.value.trim() && state.q) {
+      state.token++; state.q = ""; state.loading = false; state.error = ""; state.results = favorites(); render();
+    }
+  });
   $("sMode").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-mode]");
     if (!b || b.dataset.mode === state.mode) return;
@@ -309,6 +321,7 @@
       case "tr": r.showOrig = false; render(); break;
       case "fav": A.toggleAuthor(r); render(); break;
       case "profile": A.openProfile(r); break;
+      case "author": A.openProfile(P.authorProfile(r)); break;
       case "login": Android.login(LOGIN_URL[r.site]); break;
     }
   });

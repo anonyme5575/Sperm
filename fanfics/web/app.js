@@ -466,7 +466,8 @@
         ${cover(f, "lg")}
         <div class="dinfo">
           <div class="d-title">${esc(f.title)}</div>
-          <div class="d-sub">${f.author ? "par " + esc(f.author) : "auteur inconnu"}</div>
+          <div class="d-sub">${f.author ? `par <button class="link author-link" data-act="authorProfile">${esc(f.author)}</button>` : "auteur inconnu"}</div>
+          ${f.author && f.author !== "Anonyme" ? `<button class="chip-fav ${isFavAuthor(f) ? "on" : ""}" data-act="favAuthor">${isFavAuthor(f) ? "✓ Auteur favori" : "☆ Auteur favori"}</button>` : ""}
           <div class="badges">${f.words ? `<span class="b">${fmt(f.words)} mots</span>` : ""}${f.chapters != null ? `<span class="b">${chapText(f)}</span>` : ""}${f.fetchedAt ? (f.complete ? `<span class="b done">Terminée</span>` : `<span class="b wip">En cours d'écriture</span>`) : ""}</div>
         </div>
       </div>
@@ -516,6 +517,32 @@
     $("detailBody").innerHTML = body;
     $("detail").hidden = false;
     if (!editing && f.summary) showSummary(f, null);
+  }
+
+  // Auteur favori depuis une fanfic.
+  function isFavAuthor(f) {
+    const p = P.authorProfile(f);
+    if (p) return authors.some((a) => a.site === p.site && a.id === p.id);
+    const name = (f.author || "").split(", ")[0].toLowerCase();
+    return authors.some((a) => a.site === f.site && a.name.toLowerCase() === name);
+  }
+
+  // Trouve le profil de l'auteur ; pour une ancienne fanfic FanFiction.net, relit d'abord sa page.
+  async function withAuthor(f, then) {
+    let p = P.authorProfile(f);
+    if (!p) {
+      toast("Recherche du profil de l'auteur…");
+      try {
+        const info = P.parse(f.url, await download(P.fetchUrl(f.url), f.site));
+        if (info.authorUrl) { f.authorUrl = info.authorUrl; save(); }
+        p = P.authorProfile(f);
+      } catch (e) {
+        toast("Profil de l'auteur introuvable : " + e.message);
+        return;
+      }
+    }
+    if (!p) { toast("Cette fanfic n'indique pas le profil de son auteur."); return; }
+    then(p);
   }
 
   // Résumé traduit automatiquement (si la fanfic n'est pas déjà dans la langue choisie).
@@ -593,6 +620,14 @@
       }
       case "refresh": enqueue(f); break;
       case "read": closeSheets(); window.FanficsApp.openReader(f.id); return;
+      case "favAuthor": withAuthor(f, (p) => {
+        const i = authors.findIndex((a) => a.site === p.site && a.id === p.id);
+        if (i >= 0) { authors.splice(i, 1); toast(`${p.name} retiré de tes auteurs favoris.`); }
+        else { addAuthor(p); toast(`${p.name} ajouté à tes auteurs favoris ★`); }
+        save(); render();
+        if (detailId === f.id) openDetail(f.id);
+      }); return;
+      case "authorProfile": withAuthor(f, (p) => { closeSheets(); window.FanficsApp.openProfile(p); }); return;
       case "trSummary": showSummary(f, false); return;
       case "origSummary": showSummary(f, true); return;
       case "edit": editing = true; break;
@@ -784,7 +819,7 @@
     $("addText").value = "";
     $("addShelf").value = view.shelf || "";
     $("addSheet").hidden = false;
-    setTimeout(() => $("addText").focus(), 50);
+    setTimeout(() => { const a = document.activeElement; if (!a || !/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) $("addText").focus(); }, 50);
   });
   $("addGo").addEventListener("click", () => {
     const text = $("addText").value;
@@ -886,7 +921,7 @@
     setLastRead, openDetail, backHandlers, settings, native,
     get fics() { return fics; },
     get authors() { return authors; },
-    cover, avatar, hue,
+    cover, avatar, hue, isFavAuthor,
     plural: (n, word) => (n > 1 ? word : word.replace(/s$/, "")), // « 1 histoire », « 13 abonnés »
     addAuthor, view, showProgress,
     find: (id) => fics.find((f) => f.id === id),

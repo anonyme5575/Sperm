@@ -151,6 +151,15 @@
       </select>
       <label class="chk"><input type="checkbox" id="sComplete"> Terminées</label>
     </div>
+    <div class="filters" id="sWpOpts" hidden>
+      <select id="wLang">
+        <option value="">Toutes langues</option><option value="Français">Français</option><option value="English">Anglais</option>
+        <option value="Español">Espagnol</option><option value="Deutsch">Allemand</option><option value="Italiano">Italien</option><option value="Português">Portugais</option>
+      </select>
+      <label class="chk"><input type="checkbox" id="wComplete"> Terminées</label>
+      <label class="chk"><input type="checkbox" id="wMature" checked> Mature</label>
+    </div>
+    <p class="hint" id="sHelp" hidden style="margin:6px 2px 0;font-size:12px">"phrase exacte" · #tag · @auteur · -exclure · tous les mots sont requis</p>
   </div>
   <div class="seg" id="sSections" hidden></div>
   <div id="sResults"></div>

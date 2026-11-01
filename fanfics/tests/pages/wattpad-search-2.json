@@ -1,0 +1,6 @@
+{"stories":[
+{"id":"1","title":"Coeur de Glace","user":{"name":"plume"},"description":"Une romance enemies to lovers.","numParts":20,"completed":true,"tags":["enemiestolovers","bts"],"voteCount":900,"mature":false,"language":{"name":"Français"}},
+{"id":"2","title":"Glace et feu","user":{"name":"neo"},"description":"Rien à voir.","numParts":5,"completed":false,"tags":["fantasy"],"voteCount":10,"mature":true,"language":{"name":"English"}},
+{"id":"3","title":"Le coeur des glaces","user":{"name":"luna"},"description":"Coeur brisé, glace éternelle.","numParts":8,"completed":true,"tags":["bts","angst"],"voteCount":50,"mature":false,"language":{"name":"Français"}},
+{"id":"4","title":"Coeur","user":{"name":"x"},"description":"Rien.","numParts":2,"completed":true,"tags":[],"voteCount":5000,"mature":false,"language":{"name":"Français"}}
+]}

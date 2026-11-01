@@ -226,7 +226,7 @@
       characters: [],
       tags: (d.tags || []).map(clean),
       warnings: [],
-      rating: d.mature ? "Mature" : "",
+      rating: d.mature ? "Mature" : "", mature: !!d.mature,
       language: d.language ? d.language.name : "",
       words: null,
       chapters: d.numParts || null,
@@ -640,7 +640,58 @@
 
   // ================================================================ recherche
 
+  // ---- Recherche précise : opérateurs, filtrage strict et tri par pertinence (côté app).
+  const norm = (x) => String(x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  // "phrase exacte", -exclu, #tag, @auteur, mots (tous requis).
+  function parseQuery(q) {
+    const o = { phrases: [], exclude: [], tags: [], authors: [], words: [] };
+    String(q || "").replace(/"([^"]+)"|(\S+)/g, (_, ph, w) => {
+      if (ph) o.phrases.push(norm(ph));
+      else if (w[0] === "-" && w.length > 1) o.exclude.push(norm(w.slice(1)));
+      else if (w[0] === "#" && w.length > 1) o.tags.push(norm(w.slice(1)));
+      else if (w[0] === "@" && w.length > 1) o.authors.push(norm(w.slice(1)));
+      else o.words.push(norm(w));
+      return "";
+    });
+    o.api = [...o.words, ...o.phrases, ...o.tags].join(" ").trim() || o.authors.join(" ");
+    return o;
+  }
+
+  // Garde les résultats qui respectent tout, triés par pertinence. f : {language, complete, mature}
+  function refine(results, q, f) {
+    const o = parseQuery(q);
+    f = f || {};
+    const out = [];
+    for (const r of results) {
+      const title = norm(r.title), tags = (r.tags || []).map(norm), author = norm(r.author), desc = norm(r.summary);
+      const all = [title, tags.join(" "), author, desc].join(" \n ");
+      if (f.complete && !r.complete) continue;
+      if (f.noMature && r.mature) continue;
+      if (f.language && !norm(r.language).startsWith(norm(f.language).slice(0, 4))) continue;
+      if (o.exclude.some((w) => all.includes(w))) continue;
+      if (!o.phrases.every((ph) => all.includes(ph))) continue;
+      if (!o.tags.every((t) => tags.some((x) => x === t || x.replace(/[\s_-]/g, "") === t.replace(/[\s_-]/g, "")))) continue;
+      if (!o.authors.every((a) => author.includes(a))) continue;
+      if (!o.words.every((w) => all.includes(w))) continue;
+      const qn = [...o.phrases, ...o.words].join(" ");
+      let score = title === qn ? 100 : qn && title.includes(qn) ? 50 : 0;
+      const tw = title.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+      let hit = 0;
+      for (const w of [...o.words, ...o.phrases]) {
+        const whole = tw.includes(w); // mot entier : « glace » ne vaut pas « glaces »
+        if (whole) hit++;
+        score += (title.includes(w) ? 10 : 0) + (whole ? 5 : 0) + (tags.some((t) => t.includes(w)) ? 6 : 0) + (author.includes(w) ? 4 : 0) + (desc.includes(w) ? 2 : 0);
+      }
+      if (tw.length) score += 5 * hit / tw.length; // titre court et précis devant
+      score += o.tags.length * 6 + Math.log10((r.kudos || 0) + 1);
+      out.push([score, r]);
+    }
+    return out.sort((a, b) => b[0] - a[0]).map((x) => x[1]);
+  }
+
   const Search = {
+    parseQuery, refine,
     sites: ["ao3", "ffn", "wattpad"],
 
     url(site, q, o, page) {
@@ -656,7 +707,7 @@
       }
       if (site === "ffn") return "https://www.fanfiction.net/search/?keywords=" + e(q || "").replace(/%20/g, "+") + "&ready=1&type=story" + (page > 1 ? "&ppage=" + page : "");
       if (site === "wattpad")
-        return "https://www.wattpad.com/api/v3/stories?query=" + e(q || "") + "&limit=20&offset=" + (page - 1) * 20 +
+        return "https://www.wattpad.com/api/v3/stories?query=" + e(parseQuery(q).api) + "&limit=50&offset=" + (page - 1) * 50 +
           "&fields=stories(id,title,user(name),description,numParts,completed,tags,voteCount,mature,language(name)),nextUrl";
       throw new Error("Site inconnu");
     },

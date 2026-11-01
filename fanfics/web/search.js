@@ -185,8 +185,11 @@
       let r;
       if (state.mode === "list") r = await state.list.sections[state.list.section].load(state.page);
       else {
-        const url = S.url(state.site, state.q, opts(), state.page);
-        r = S.parse(state.site, await A.download(url, state.site, S.readySelector(state.site)));
+        if (state.site === "wattpad") r = await wattpadPrecise(t);
+        else {
+          const url = S.url(state.site, state.q, opts(), state.page);
+          r = S.parse(state.site, await A.download(url, state.site, S.readySelector(state.site)));
+        }
       }
       if (t !== state.token) return;
       const fresh = r.results.filter((x) => !state.results.some((y) => keyOf(y) === keyOf(x)));
@@ -202,6 +205,22 @@
       if (more) state.page--;
       render();
     }
+  }
+
+  // Wattpad renvoie des résultats approximatifs : on filtre strictement et on trie ici,
+  // en lisant jusqu'à 4 pages pour avoir assez de résultats vraiment pertinents.
+  async function wattpadPrecise(t) {
+    const f = { language: $("wLang").value, complete: $("wComplete").checked, noMature: !$("wMature").checked };
+    const kept = [];
+    let next = true;
+    for (let i = 0; i < 4 && next && kept.length < 15; i++) {
+      if (i) state.page++;
+      const raw = S.parse("wattpad", await A.download(S.url("wattpad", state.q, {}, state.page), "wattpad"));
+      if (t !== state.token) return { results: [], next: false };
+      kept.push(...S.refine(raw.results, state.q, f));
+      next = raw.next;
+    }
+    return { results: S.refine(kept, state.q, f), next };
   }
 
   function info(r) {
@@ -222,6 +241,8 @@
     $("sSections").hidden = !list || state.list.sections.length < 2;
     $("sSite").hidden = state.mode !== "stories";
     $("sAo3Opts").hidden = state.mode !== "stories" || state.site !== "ao3";
+    $("sWpOpts").hidden = state.mode !== "stories" || state.site !== "wattpad";
+    $("sHelp").hidden = state.mode !== "stories" || state.site !== "wattpad";
     for (const x of $("sMode").children) x.classList.toggle("on", x.dataset.mode === state.mode);
     $("sQuery").placeholder = state.mode === "accounts" ? "Pseudo d'un compte…" : "Chercher une fanfic…";
     if (list) {
@@ -320,7 +341,7 @@
     layout();
     run(false);
   });
-  for (const id of ["sLang", "sSort", "sComplete"]) $(id).addEventListener("change", () => { if (state.q) run(false); });
+  for (const id of ["sLang", "sSort", "sComplete", "wLang", "wComplete", "wMature"]) $(id).addEventListener("change", () => { if (state.q) run(false); });
 
   $("sResults").addEventListener("click", (e) => {
     const x = e.target.closest("[data-x]");

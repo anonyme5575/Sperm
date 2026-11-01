@@ -22,6 +22,14 @@ App Android pour ranger les fanfics que tu aimes à partir de leurs liens.
 - Menu ⋮ : activer ou couper la traduction, choisir la langue (français, anglais, espagnol, allemand, italien, portugais).
 - La traduction passe par le service gratuit de Google Traduction : le texte des chapitres est envoyé à Google. Ce service n'est pas officiellement prévu pour les apps ; s'il refuse (trop de demandes), réessaie plus tard.
 
+## Recherche Wattpad précise
+
+Wattpad renvoie des résultats approximatifs : l'app les filtre et les trie elle-même (jusqu'à 4 pages lues pour garder assez de bons résultats).
+- Tous les mots sont requis (titre, tags, auteur ou résumé), accents ignorés.
+- `"phrase exacte"`, `#tag` (ex. `#enemiestolovers`, tirets et espaces ignorés), `@auteur`, `-mot` pour exclure.
+- Filtres : langue, terminées seulement, contenu mature ou non.
+- Tri : titre exact, puis mots entiers dans un titre court, puis tags, auteur, résumé, puis popularité.
+
 ## Rechercher des fanfics
 
 - Bouton 🔍 : recherche sur AO3, FanFiction.net ou Wattpad (titre, fandom, personnage, couple, tag…).

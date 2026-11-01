@@ -217,6 +217,19 @@ async function test(name, fn) {
     assert.strictEqual(r.results[1].rating, "K+");
   });
 
+  await test("recherche Wattpad précise : opérateurs, filtrage strict, tri", async () => {
+    const R = (q, f) => ev(([b, q, f]) => Parsers.Search.refine(Parsers.Search.parse("wattpad", b).results, q, f).map((x) => x.title), [page("wattpad-search-2.json"), q, f || {}]);
+    assert.deepStrictEqual(await R("coeur glace"), ["Coeur de Glace", "Le coeur des glaces"]); // tous les mots requis, titre exact d'abord
+    assert.deepStrictEqual(await R('"coeur de glace"'), ["Coeur de Glace"]);
+    assert.deepStrictEqual(await R("coeur #angst"), ["Le coeur des glaces"]);
+    assert.deepStrictEqual(await R("coeur -bts"), ["Coeur"]);
+    assert.deepStrictEqual(await R("@neo"), ["Glace et feu"]);
+    assert.deepStrictEqual(await R("glace", { complete: true }), ["Coeur de Glace", "Le coeur des glaces"]);
+    assert.deepStrictEqual(await R("glace", { noMature: true, language: "Français" }), ["Coeur de Glace", "Le coeur des glaces"]);
+    assert.deepStrictEqual(await R("coeur #enemies-to-lovers"), ["Coeur de Glace"]); // tag sans tirets
+    assert.strictEqual(await ev(() => Parsers.Search.parseQuery('"a b" #t @u -x mot').api), "mot a b t");
+  });
+
   await test("recherche Wattpad : résultats", async () => {
     const r = await ev((b) => Parsers.Search.parse("wattpad", b), page("wattpad-search.json"));
     assert.strictEqual(r.next, true);
@@ -329,6 +342,7 @@ async function test(name, fn) {
     if (routes[url]) return routes[url];
     // Wattpad : plusieurs adresses d'API possibles ; seules certaines répondent.
     const wp = [
+      [/\/api\/v3\/stories\?query=coeur/, { ok: true, status: 200, body: page("wattpad-search-2.json") }],
       [/\/api\/v3\/users\/jose\?/, { ok: true, status: 200, body: page("wattpad-user.json").replace("luna_ecrit", "jose") }],
       [/\/api\/v3\/users\/jose\/stories\?/, { ok: true, status: 200, body: page("wattpad-search.json") }],
       [/\/api\/v3\/users\/jose\/lists\?/, { ok: true, status: 200, body: '{"error_type":"NotFound"}' }],
@@ -896,6 +910,24 @@ async function test(name, fn) {
     await app.click(".news [data-x=dismiss]");
     assert.ok(!(await app.$(".news")), "ne devrait pas exister : " + ".news");
     assert.ok(!(await app.$("#btnAccounts.dot")), "ne devrait pas exister : " + "#btnAccounts.dot");
+    await app.evaluate(() => window.__back());
+  });
+
+  await test("app : recherche Wattpad précise dans l'app", async () => {
+    await app.click("#btnSearch");
+    await app.click("#sSite [data-site=wattpad]");
+    assert.ok(await app.isVisible("#sWpOpts"));
+    await app.fill("#sQuery", "coeur #bts");
+    await app.press("#sQuery", "Enter");
+    await app.waitForSelector(".sres .t");
+    assert.deepStrictEqual((await app.$$eval(".sres .t", (e) => e.map((x) => x.textContent))).sort(), ["Coeur de Glace", "Le coeur des glaces"]);
+    await app.check("#wComplete");
+    await app.selectOption("#wLang", "English");
+    await app.waitForSelector(".rwait");
+    assert.match(await app.textContent("#sResults"), /Aucun résultat/);
+    await app.selectOption("#wLang", "");
+    await app.uncheck("#wComplete");
+    await app.click("#sSite [data-site=ao3]");
     await app.evaluate(() => window.__back());
   });
 

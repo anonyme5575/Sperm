@@ -264,5 +264,214 @@
     return info;
   }
 
-  global.Parsers = { SITES, extractUrls, canonical, siteOf, fetchUrl, fromUrl, parse, chapterPair };
+
+  // ================================================================ chapitres (lecteur)
+
+  // Texte d'un élément, découpé en paragraphes (sauts de ligne et blocs respectés).
+  function paragraphsOf(el) {
+    if (!el) return [];
+    const c = el.cloneNode(true);
+    c.querySelectorAll("script,style,noscript,.landmark,form,button,select,iframe,img").forEach((e) => e.remove());
+    c.querySelectorAll("br").forEach((b) => b.replaceWith("\n"));
+    c.querySelectorAll("hr").forEach((h) => h.replaceWith("\n* * *\n"));
+    c.querySelectorAll("p,div,h1,h2,h3,h4,h5,h6,li,blockquote,center,pre,tr,section,article").forEach((b) => { b.prepend("\n"); b.append("\n"); });
+    return c.textContent.split("\n").map((t) => t.replace(/[ \t ​]+/g, " ").trim()).filter(Boolean);
+  }
+
+  const abs = (href, base) => { try { return new URL(href, base).toString(); } catch (e) { return href; } };
+  const html = (body) => new DOMParser().parseFromString(body, "text/html");
+  const wattpadPart = (id) => "https://www.wattpad.com/apiv2/storytext?id=" + id;
+
+  const Chapters = {
+    // Adresse de la liste des chapitres, ou null si la liste vient du chapitre lui-même / n'existe pas.
+    listUrl(url) {
+      const site = siteOf(url);
+      let m;
+      if (site === "ao3" && (m = url.match(/\/works\/(\d+)$/))) return "https://archiveofourown.org/works/" + m[1] + "/navigate?view_adult=true";
+      if (site === "wattpad" && (m = url.match(/\/story\/(\d+)/))) return "https://www.wattpad.com/api/v3/stories/" + m[1] + "?fields=parts(id,title)";
+      return null;
+    },
+
+    // Liste connue sans rien télécharger (FanFiction.net : complétée en lisant le chapitre).
+    initialList(url, title, count) {
+      const site = siteOf(url);
+      let m;
+      if (site === "ffn") {
+        const n = Math.max(1, count || 1);
+        return Array.from({ length: n }, (_, i) => ({ title: "Chapitre " + (i + 1), url: this.ffnChapter(url, i + 1) }));
+      }
+      if (site === "wattpad" && (m = url.match(/wattpad\.com\/(\d+)$/))) return [{ title: title || "Partie", url: wattpadPart(m[1]) }];
+      if (this.listUrl(url)) return null;
+      return [{ title: title || "Texte", url }];
+    },
+
+    ffnChapter(url, n) {
+      return url.replace(/\/s\/(\d+)\/\d+\/.*$/, "/s/$1/" + n + "/");
+    },
+
+    parseList(url, body) {
+      const site = siteOf(url);
+      if (site === "wattpad") {
+        const d = JSON.parse(body);
+        const parts = (d && d.parts) || [];
+        if (!parts.length) throw new Error("Aucune partie trouvée sur Wattpad.");
+        return parts.map((p) => ({ title: clean(p.title), url: wattpadPart(p.id) }));
+      }
+      const doc = html(body);
+      const list = Array.from(doc.querySelectorAll("ol.chapter.index a, ol.index a, #main ol a"))
+        .map((a) => a.getAttribute("href") || "")
+        .filter((h, i, all) => /\/works\/\d+\/chapters\/\d+/.test(h) && all.indexOf(h) === i);
+      if (!list.length) {
+        if (/registered users|log in/i.test(doc.body ? doc.body.textContent : ""))
+          throw new Error("Fanfic réservée aux membres AO3 : lecture impossible dans l'app.");
+        throw new Error("Liste des chapitres introuvable.");
+      }
+      const titles = new Map(Array.from(doc.querySelectorAll("ol a")).map((a) => [a.getAttribute("href"), clean(a.textContent)]));
+      return list.map((h) => ({ title: titles.get(h) || "", url: abs(h.split("?")[0], "https://archiveofourown.org") + "?view_adult=true" }));
+    },
+
+    // Sélecteur qui prouve que la page du chapitre est arrivée (navigateur intégré).
+    readySelector(url) {
+      return siteOf(url) === "ffn" ? "#storytext" : "";
+    },
+
+    // Renvoie { title, paragraphs, list } ; list seulement si la page donne la liste des chapitres.
+    parseChapter(url, body) {
+      const site = siteOf(url);
+      if (site === "wattpad") {
+        const p = paragraphsOf(html(body).body);
+        if (!p.length) throw new Error("Partie Wattpad vide ou inaccessible.");
+        return { title: "", paragraphs: p, list: null };
+      }
+      const doc = html(body);
+      if (site === "ao3") {
+        const root = doc.querySelector("#chapters");
+        if (!root) {
+          if (/registered users|log in/i.test(doc.body ? doc.body.textContent : ""))
+            throw new Error("Fanfic réservée aux membres AO3 : lecture impossible dans l'app.");
+          throw new Error("Texte du chapitre introuvable.");
+        }
+        const text = root.querySelector("div.userstuff[role=article]") || root.querySelector("div.userstuff") || root;
+        return { title: text_(root, ".chapter.preface h3.title, h3.title"), paragraphs: paragraphsOf(text), list: null };
+      }
+      if (site === "ffn") {
+        const text = doc.querySelector("#storytext");
+        if (!text) throw new Error("Texte du chapitre introuvable sur FanFiction.net.");
+        const opts = Array.from((doc.querySelector("#chap_select") || doc).querySelectorAll("#chap_select option"));
+        const list = opts.length ? opts.map((o) => ({ title: clean(o.textContent).replace(/^\d+\.\s*/, ""), url: this.ffnChapter(url, +o.value) })) : null;
+        const cur = opts.find((o) => o.selected);
+        return { title: cur ? clean(cur.textContent).replace(/^\d+\.\s*/, "") : "", paragraphs: paragraphsOf(text), list };
+      }
+      // Autre site : le bloc qui contient le plus de texte en paragraphes.
+      let best = null, bestScore = 0;
+      for (const el of doc.querySelectorAll("article, main, section, div, td")) {
+        let score = 0;
+        for (const ch of el.children) if (ch.tagName === "P" || ch.tagName === "BR") score += ch.textContent.length + (ch.tagName === "BR" ? 40 : 0);
+        if (score > bestScore) { best = el; bestScore = score; }
+      }
+      const paras = paragraphsOf(bestScore > 300 ? best : doc.body);
+      if (!paras.length) throw new Error("Aucun texte trouvé sur la page.");
+      return { title: "", paragraphs: paras, list: null };
+    },
+  };
+  function text_(root, sel) { const e = root.querySelector(sel); return e ? clean(e.textContent) : ""; }
+
+  // ================================================================ recherche
+
+  const Search = {
+    sites: ["ao3", "ffn", "wattpad"],
+
+    url(site, q, o, page) {
+      o = o || {};
+      page = page || 1;
+      const e = encodeURIComponent;
+      if (site === "ao3") {
+        let u = "https://archiveofourown.org/works/search?work_search%5Bquery%5D=" + e(q || "");
+        if (o.language) u += "&work_search%5Blanguage_id%5D=" + e(o.language);
+        if (o.complete) u += "&work_search%5Bcomplete%5D=T";
+        if (o.sort) u += "&work_search%5Bsort_column%5D=" + e(o.sort) + "&work_search%5Bsort_direction%5D=desc";
+        return u + (page > 1 ? "&page=" + page : "");
+      }
+      if (site === "ffn") return "https://www.fanfiction.net/search/?keywords=" + e(q || "").replace(/%20/g, "+") + "&ready=1&type=story" + (page > 1 ? "&ppage=" + page : "");
+      if (site === "wattpad")
+        return "https://www.wattpad.com/api/v3/stories?query=" + e(q || "") + "&limit=20&offset=" + (page - 1) * 20 +
+          "&fields=stories(id,title,user(name),description,numParts,completed,tags,voteCount,mature,language(name)),nextUrl";
+      throw new Error("Site inconnu");
+    },
+
+    readySelector(site) {
+      return site === "ffn" ? ".z-list, #content_wrapper_inner" : "";
+    },
+
+    parse(site, body) {
+      if (site === "wattpad") {
+        const d = JSON.parse(body);
+        return {
+          next: !!d.nextUrl,
+          results: (d.stories || []).map((s) => Object.assign(parseWattpadJson(s), { url: "https://www.wattpad.com/story/" + s.id, site })),
+        };
+      }
+      const doc = html(body);
+      if (site === "ao3") {
+        const results = Array.from(doc.querySelectorAll("li.work.blurb, li.blurb")).map((li) => {
+          const link = li.querySelector("h4.heading a[href*='/works/']");
+          if (!link) return null;
+          const ch = chapterPair(text(li, "dd.chapters"));
+          return {
+            site, url: canonical(abs(link.getAttribute("href"), "https://archiveofourown.org")),
+            title: clean(link.textContent),
+            author: texts(li, "h4.heading a[rel=author]").join(", ") || "Anonyme",
+            fandoms: texts(li, "h5.fandoms a.tag"),
+            relationships: texts(li, "li.relationships a.tag"),
+            characters: texts(li, "li.characters a.tag"),
+            tags: texts(li, "li.freeforms a.tag"),
+            warnings: texts(li, "li.warnings a.tag"),
+            rating: text(li, ".required-tags .rating .text") || (li.querySelector(".required-tags .rating") || { title: "" }).title || "",
+            language: text(li, "dd.language"),
+            words: num(text(li, "dd.words")),
+            chapters: ch.chapters, chaptersTotal: ch.total, complete: ch.total != null && ch.chapters === ch.total,
+            published: "", updated: text(li, "p.datetime"),
+            kudos: num(text(li, "dd.kudos")), series: "",
+            summary: paragraphs(li.querySelector("blockquote.summary")),
+          };
+        }).filter(Boolean);
+        return { results, next: !!doc.querySelector("ol.pagination li.next a, a[rel=next]") };
+      }
+      if (site === "ffn") {
+        const results = Array.from(doc.querySelectorAll("div.z-list")).map((z) => {
+          const link = z.querySelector("a.stitle");
+          if (!link) return null;
+          const statsEl = z.querySelector(".z-padtop2, .xgray");
+          const stats = statsEl ? clean(statsEl.textContent) : "";
+          const ind = z.querySelector(".z-indent");
+          let summary = ind ? clean(ind.textContent) : "";
+          if (stats && summary.endsWith(stats)) summary = summary.slice(0, -stats.length).trim();
+          const field = (n) => { const m = stats.match(new RegExp(n + ":\\s*([^-]+?)\\s*(?:-|$)")); return m ? m[1].trim() : ""; };
+          const chapters = num(field("Chapters")) || 1;
+          const complete = /(^|-)\s*Complete\s*($|-)/.test(stats);
+          const fandom = (stats.split(/\s+-\s+Rated:/)[0] || "").trim();
+          const parts = stats.split(/\s+-\s+/);
+          const ri = parts.findIndex((p) => /^Rated:/.test(p));
+          return {
+            site, url: canonical(abs(link.getAttribute("href"), "https://www.fanfiction.net")),
+            title: clean(link.textContent),
+            author: text(z, "a[href^='/u/']"),
+            fandoms: fandom && !/^Rated:/.test(fandom) ? [fandom] : [],
+            relationships: [], characters: [], tags: [], warnings: [],
+            rating: (stats.match(/Rated:\s*(?:Fiction\s+)?([A-Z+]+)/) || [, ""])[1],
+            language: ri >= 0 ? parts[ri + 1] || "" : "",
+            words: num(field("Words")),
+            chapters, chaptersTotal: complete ? chapters : null, complete,
+            published: "", updated: "", kudos: num(field("Favs")), series: "",
+            summary,
+          };
+        }).filter(Boolean);
+        const next = Array.from(doc.querySelectorAll("center a, #content_wrapper_inner a")).some((a) => /next/i.test(a.textContent));
+        return { results, next };
+      }
+      throw new Error("Site inconnu");
+    },
+  };
+
+  global.Parsers = { SITES, extractUrls, canonical, siteOf, fetchUrl, fromUrl, parse, chapterPair, paragraphsOf, Chapters, Search };
 })(typeof window !== "undefined" ? window : globalThis);

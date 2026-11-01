@@ -169,6 +169,23 @@ public class MainActivity extends Activity {
         ui.post(new Runnable() { @Override public void run() { web.evaluateJavascript(code, null); } });
     }
 
+    private File cacheDir() {
+        File d = new File(getNoBackupFilesDir(), "cache"); // hors sauvegarde Google (limitée à 25 Mo)
+        d.mkdirs();
+        return d;
+    }
+
+    private File cacheFile(String key) {
+        try {
+            byte[] h = java.security.MessageDigest.getInstance("SHA-1").digest(key.getBytes(StandardCharsets.UTF_8));
+            StringBuilder b = new StringBuilder();
+            for (byte x : h) b.append(String.format("%02x", x));
+            return new File(cacheDir(), b.toString());
+        } catch (Exception e) {
+            return new File(cacheDir(), Integer.toHexString(key.hashCode()));
+        }
+    }
+
     private File dataFile() {
         return new File(getFilesDir(), "fanfics.json");
     }
@@ -242,19 +259,24 @@ public class MainActivity extends Activity {
     // l'interface, et on la montre seulement si la vérification demande de cocher une case.
     // Les cookies de vérification sont gardés : les fois suivantes, ça passe sans rien demander.
 
-    private static final String PROBE = "(function(){var d=document;"
-            + "if(d.querySelector('#profile_top'))return 'OK'+d.documentElement.outerHTML;"
+    /** Script qui dit où en est la page : OK (attendue), WAIT (vérification), MAINT, PAGE (autre). */
+    private static String probe(String ready) {
+        String sel = ready == null || ready.isEmpty() ? "#profile_top" : ready;
+        return "(function(){var d=document;"
+            + "if(d.querySelector(" + JSONObject.quote(sel) + ")&&d.readyState!=='loading')return 'OK'+d.documentElement.outerHTML;"
             + "var t=(d.title||'')+' '+(d.body?d.body.innerText.slice(0,3000):'');"
             + "if(/just a moment|un instant|verify you are human|v\u00e9rifi|checking your browser|cloudflare|ddos/i.test(t))return 'WAIT';"
             + "if(/maintenance/i.test(t))return 'MAINT';"
             + "if(d.readyState==='complete'&&d.body&&d.body.innerText.length>200)return 'PAGE'+d.documentElement.outerHTML;"
             + "return 'WAIT';})()";
+    }
 
     private final ArrayDeque<String[]> bQueue = new ArrayDeque<>();
     private WebView browser;
     private LinearLayout browserBox;
     private View browserBar;
     private String bId;
+    private String bProbe;
     private long bStart;
     private boolean bShown;
 
@@ -263,7 +285,7 @@ public class MainActivity extends Activity {
         public void run() {
             if (bId == null) return;
             final String id = bId;
-            browser.evaluateJavascript(PROBE, new ValueCallback<String>() {
+            browser.evaluateJavascript(bProbe, new ValueCallback<String>() {
                 @Override
                 public void onReceiveValue(String v) {
                     if (!id.equals(bId)) return;
@@ -301,8 +323,8 @@ public class MainActivity extends Activity {
         return "{\"ok\":false,\"error\":" + JSONObject.quote(msg) + "}";
     }
 
-    private void browserFetch(String id, String url) {
-        bQueue.add(new String[]{id, url});
+    private void browserFetch(String id, String url, String ready) {
+        bQueue.add(new String[]{id, url, ready});
         if (bId == null) nextBrowser();
     }
 
@@ -315,6 +337,7 @@ public class MainActivity extends Activity {
         }
         ensureBrowser();
         bId = job[0];
+        bProbe = probe(job[2]);
         bStart = SystemClock.uptimeMillis();
         browser.loadUrl(job[1]);
         ui.postDelayed(poll, 1500);
@@ -436,8 +459,38 @@ public class MainActivity extends Activity {
 
         /** Comme fetch, mais à travers le navigateur intégré (pages protégées contre les robots). */
         @JavascriptInterface
-        public void fetchBrowser(final String id, final String url) {
-            ui.post(new Runnable() { @Override public void run() { browserFetch(id, url); } });
+        public void fetchBrowser(final String id, final String url, final String ready) {
+            ui.post(new Runnable() { @Override public void run() { browserFetch(id, url, ready); } });
+        }
+
+        // Chapitres et traductions déjà téléchargés : un fichier par clé dans files/cache.
+        @JavascriptInterface
+        public String cacheGet(String key) {
+            File f = cacheFile(key);
+            if (!f.exists()) return null;
+            try (InputStream in = new java.io.FileInputStream(f)) {
+                return new String(readAll(in, Integer.MAX_VALUE), StandardCharsets.UTF_8);
+            } catch (Exception e) {
+                return null;
+            }
+        }
+
+        @JavascriptInterface
+        public void cachePut(String key, String value) {
+            File f = cacheFile(key);
+            File tmp = new File(f.getPath() + ".tmp");
+            try (FileOutputStream out = new FileOutputStream(tmp)) {
+                out.write(value.getBytes(StandardCharsets.UTF_8));
+            } catch (Exception e) {
+                return;
+            }
+            tmp.renameTo(f);
+        }
+
+        @JavascriptInterface
+        public void cacheClear() {
+            File[] all = cacheDir().listFiles();
+            if (all != null) for (File f : all) f.delete();
         }
 
         @JavascriptInterface

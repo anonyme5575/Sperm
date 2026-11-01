@@ -11,10 +11,11 @@
 <header>
   <div class="bar">
     <h1>Mes Fanfics</h1>
+    <button id="btnSearch" class="icon" title="Chercher des fanfics">🔍</button>
     <button id="btnUpdates" class="icon" title="Chercher les nouveaux chapitres">⟳</button>
     <button id="btnMenu" class="icon" title="Menu">⋮</button>
   </div>
-  <input id="search" type="search" placeholder="Chercher : titre, auteur, fandom, tag, note…" autocomplete="off">
+  <input id="search" type="search" placeholder="Filtrer ma liste : titre, auteur, fandom, tag…" autocomplete="off">
   <nav id="tabs"></nav>
   <div class="filters">
     <select id="fFandom"></select>
@@ -67,9 +68,60 @@
     <button class="item" id="mExport">Sauvegarder ma liste (fichier)</button>
     <button class="item" id="mImport">Restaurer une sauvegarde</button>
     <button class="item" id="mRefreshAll">Relire les infos de toutes les fanfics</button>
+    <label class="item check"><input type="checkbox" id="setAuto"> Traduire automatiquement les chapitres et résumés</label>
+    <label class="row">Traduire en
+      <select id="setLang">
+        <option value="fr">Français</option><option value="en">Anglais</option><option value="es">Espagnol</option>
+        <option value="de">Allemand</option><option value="it">Italien</option><option value="pt">Portugais</option>
+      </select>
+    </label>
+    <button class="item" id="mClearCache" style="margin-top:10px">Effacer les chapitres et traductions gardés sur le téléphone</button>
     <p class="hint" id="stats"></p>
     <div class="actions"><button class="ghost" data-close>Fermer</button></div>
   </div>
+</div>
+
+<!-- Lecteur -->
+<div id="reader" class="view" hidden>
+  <div class="rtop">
+    <button class="icon" id="rBack" title="Retour">←</button>
+    <div class="rtitle"><b id="rFic"></b><small id="rCh"></small></div>
+    <button class="icon small" id="rSmaller" title="Texte plus petit">A−</button>
+    <button class="icon small" id="rBigger" title="Texte plus grand">A+</button>
+  </div>
+  <div id="rBanner" hidden></div>
+  <div id="rBody"></div>
+  <div class="rbot">
+    <button id="rPrev" class="ghost">◀</button>
+    <select id="rList"></select>
+    <button id="rNext" class="ghost">▶</button>
+  </div>
+</div>
+
+<!-- Recherche -->
+<div id="searchView" class="view" hidden>
+  <div class="rtop">
+    <button class="icon" id="sBack" title="Retour">←</button>
+    <input id="sQuery" type="search" placeholder="Chercher une fanfic…" autocomplete="off" enterkeyhint="search">
+    <button class="icon" id="sGo" title="Chercher">🔍</button>
+  </div>
+  <div class="sopts">
+    <div class="seg" id="sSite">
+      <button data-site="ao3" class="on">AO3</button><button data-site="ffn">FanFiction.net</button><button data-site="wattpad">Wattpad</button>
+    </div>
+    <div class="filters" id="sAo3Opts">
+      <select id="sLang">
+        <option value="">Toutes langues</option><option value="fr">Français</option><option value="en">Anglais</option>
+        <option value="es">Espagnol</option><option value="de">Allemand</option><option value="it">Italien</option><option value="pt-BR">Portugais</option>
+      </select>
+      <select id="sSort">
+        <option value="">Pertinence</option><option value="kudos_count">Kudos</option><option value="revised_at">Mise à jour</option>
+        <option value="hits">Vues</option><option value="word_count">Longueur</option>
+      </select>
+      <label class="chk"><input type="checkbox" id="sComplete"> Terminées</label>
+    </div>
+  </div>
+  <div id="sResults"></div>
 </div>
 
 <datalist id="shelves"></datalist>
@@ -78,5 +130,8 @@
 
 <script src="parsers.js"></script>
 <script src="app.js"></script>
+<script src="translate.js"></script>
+<script src="reader.js"></script>
+<script src="search.js"></script>
 </body>
 </html>

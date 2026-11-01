@@ -18,6 +18,8 @@
   const STATUS_ONE = { toread: "À lire", reading: "En cours", read: "Lue", dropped: "Abandonnée" };
 
   let fics = [];
+  // Réglages : traduction automatique vers `lang`, taille du texte du lecteur.
+  const settings = { autoTranslate: true, lang: "fr", fontSize: 19 };
   const view = { tab: "all", q: "", fandom: "", shelf: "", sort: "added" };
   const busy = new Set(); // ids en cours de téléchargement
 
@@ -28,6 +30,7 @@
       const raw = native ? Android.load() : localStorage.getItem("fanfics");
       const d = raw ? JSON.parse(raw) : null;
       fics = d && Array.isArray(d.fics) ? d.fics : [];
+      if (d && d.settings) Object.assign(settings, d.settings);
     } catch (e) {
       fics = [];
       toast("Impossible de lire les données enregistrées.");
@@ -42,7 +45,7 @@
   function flush() {
     clearTimeout(saveTimer);
     saveTimer = 0;
-    const json = JSON.stringify({ version: 1, fics });
+    const json = JSON.stringify({ version: 1, fics, settings });
     if (native) Android.save(json);
     else localStorage.setItem("fanfics", json);
   }
@@ -62,22 +65,24 @@
     if (cb) cb(JSON.parse(Android.take(id)));
   };
 
-  function nativeCall(method, url) {
+  function nativeCall(method, url, ready) {
     return new Promise((resolve, reject) => {
       const id = "f" + ++seq;
       pending[id] = (r) => (r.ok ? resolve(r.body) : reject(new Error(r.error || "Erreur " + r.status)));
-      Android[method](id, url);
+      if (method === "fetchBrowser") Android.fetchBrowser(id, url, ready || "");
+      else Android.fetch(id, url);
     });
   }
 
   // FanFiction.net passe directement par le navigateur intégré (vérification anti-robot) ;
   // les autres sites aussi, mais seulement si la lecture simple se fait bloquer.
-  function download(url, site) {
+  // ready : sélecteur CSS qui prouve que la page attendue est chargée (navigateur intégré).
+  function download(url, site, ready) {
     if (native) {
       const browser = typeof Android.fetchBrowser === "function";
-      if (browser && site === "ffn") return nativeCall("fetchBrowser", url);
+      if (browser && site === "ffn") return nativeCall("fetchBrowser", url, ready);
       return nativeCall("fetch", url).catch((e) => {
-        if (browser && /anti-robot/.test(e.message)) return nativeCall("fetchBrowser", url);
+        if (browser && /anti-robot/.test(e.message)) return nativeCall("fetchBrowser", url, ready);
         throw e;
       });
     }
@@ -87,6 +92,27 @@
     }).catch((e) => {
       throw new Error(e instanceof TypeError ? "Le navigateur bloque la lecture de ce site : utilise l'app Android ou remplis les infos à la main." : e.message);
     });
+  }
+
+  // ------------------------------------------------------------ cache (chapitres, traductions)
+  // Garde le texte déjà téléchargé : relecture instantanée et lecture hors ligne.
+
+  function cacheGet(key) {
+    try {
+      const v = native ? Android.cacheGet(key) : localStorage.getItem("c:" + key);
+      return v ? JSON.parse(v) : null;
+    } catch (e) { return null; }
+  }
+  function cachePut(key, value) {
+    try {
+      const v = JSON.stringify(value);
+      if (native) Android.cachePut(key, v);
+      else localStorage.setItem("c:" + key, v);
+    } catch (e) { /* plein : tant pis, on retéléchargera */ }
+  }
+  function cacheClear() {
+    if (native) Android.cacheClear();
+    else for (const k of Object.keys(localStorage)) if (k.startsWith("c:")) localStorage.removeItem(k);
   }
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -345,12 +371,13 @@
       <textarea id="dNotes" rows="3" placeholder="Ce que j'en pense, où j'en suis…">${esc(f.notes)}</textarea>
 
       <div class="actions">
-        <button class="primary" data-act="open">Ouvrir${f.site === "ffn" && f.lastRead ? " (chap. " + Math.min(f.lastRead + 1, total || f.lastRead + 1) + ")" : ""}</button>
+        <button class="primary" data-act="read">📖 ${f.readCh ? "Reprendre au chap. " + f.readCh : "Lire"}</button>
+        <button class="ghost" data-act="open">Sur le site</button>
         <button class="ghost" data-act="refresh">Relire les infos</button>
         <button class="ghost" data-act="edit">Modifier</button>
       </div>
 
-      ${f.summary ? `<div class="sec">Résumé</div><div class="summary">${esc(f.summary)}</div>` : ""}
+      ${f.summary ? `<div class="sec">Résumé <button class="link" data-act="trSummary" id="trSummaryBtn" hidden></button></div><div class="summary" id="dSummary">${esc(f.summary)}</div>` : ""}
       ${tags("Fandoms", f.fandoms)}
       ${tags("Relations", f.relationships)}
       ${tags("Personnages", f.characters)}
@@ -363,6 +390,32 @@
       </div>`;
     $("detailBody").innerHTML = body;
     $("detail").hidden = false;
+    if (!editing && f.summary) showSummary(f, null);
+  }
+
+  // Résumé traduit automatiquement (si la fanfic n'est pas déjà dans la langue choisie).
+  const summaryOriginal = new Set();
+  function showSummary(f, forceOriginal) {
+    const T = window.FanficsApp && window.FanficsApp.translate;
+    if (!T) return;
+    const box = $("dSummary"), btn = $("trSummaryBtn");
+    if (forceOriginal != null) { if (forceOriginal) summaryOriginal.add(f.id); else summaryOriginal.delete(f.id); }
+    const wantOriginal = summaryOriginal.has(f.id) || !settings.autoTranslate || T.sameLanguage(f.language);
+    btn.hidden = false;
+    if (wantOriginal) {
+      box.textContent = f.summary;
+      btn.textContent = "Traduire";
+      btn.dataset.act = "trSummary";
+      return;
+    }
+    btn.textContent = "Traduction…";
+    T.paragraphs(f.summary.split(/\n+/), "sum:" + f.id + ":" + f.summary.length).then((tr) => {
+      if (detailId !== f.id || !$("dSummary")) return;
+      if (!tr) { btn.hidden = true; return; } // déjà dans la bonne langue
+      $("dSummary").textContent = tr.join("\n\n");
+      $("trSummaryBtn").textContent = "Voir l'original";
+      $("trSummaryBtn").dataset.act = "origSummary";
+    }).catch(() => { if ($("trSummaryBtn")) $("trSummaryBtn").textContent = "Traduction impossible"; });
   }
 
   function editForm(f) {
@@ -414,6 +467,9 @@
         break;
       }
       case "refresh": enqueue(f); break;
+      case "read": closeSheets(); window.FanficsApp.openReader(f.id); return;
+      case "trSummary": showSummary(f, false); return;
+      case "origSummary": showSummary(f, true); return;
       case "edit": editing = true; break;
       case "cancelEdit": editing = false; break;
       case "saveEdit": {
@@ -555,9 +611,11 @@
   }
 
   // Bouton Retour d'Android : ferme d'abord ce qui est ouvert. Renvoie true si quelque chose a été fermé.
+  const backHandlers = []; // lecteur, recherche : fermés en premier
   window.__back = function () {
     if (editing) { editing = false; openDetail(detailId); return true; }
     if ([...document.querySelectorAll(".sheet")].some((s) => !s.hidden)) { closeSheets(); return true; }
+    for (const h of backHandlers) if (h()) return true;
     if (view.q || view.tab !== "all" || view.fandom || view.shelf) {
       view.q = ""; view.tab = "all"; view.fandom = ""; view.shelf = "";
       $("search").value = "";
@@ -625,12 +683,18 @@
   }
 
   $("btnUpdates").addEventListener("click", checkUpdates);
+  $("btnSearch").addEventListener("click", () => window.FanficsApp.openSearch());
   $("btnMenu").addEventListener("click", () => {
     const words = fics.filter((f) => f.status === "read").reduce((s, f) => s + (f.words || 0), 0);
     $("stats").textContent = `${fics.length} fanfic${fics.length > 1 ? "s" : ""} · ${fics.filter((f) => f.status === "read").length} lue${fics.filter((f) => f.status === "read").length > 1 ? "s" : ""}` +
       (words ? ` · ${fmt(words)} mots lus` : "") + (native ? "" : " · Mode navigateur : les infos des sites ne peuvent pas toujours être lues.");
+    $("setAuto").checked = settings.autoTranslate;
+    $("setLang").value = settings.lang;
     $("menu").hidden = false;
   });
+  $("setAuto").addEventListener("change", (e) => { settings.autoTranslate = e.target.checked; save(); });
+  $("setLang").addEventListener("change", (e) => { settings.lang = e.target.value; save(); });
+  $("mClearCache").addEventListener("click", () => { cacheClear(); closeSheets(); toast("Chapitres et traductions effacés de l'appareil."); });
   $("mExport").addEventListener("click", () => { exportData(); closeSheets(); });
   $("mImport").addEventListener("click", () => { closeSheets(); native ? Android.importFile() : $("fileIn").click(); });
   $("fileIn").addEventListener("change", (e) => {
@@ -646,11 +710,31 @@
 
   // ------------------------------------------------------------ démarrage
 
+  // Ajout depuis la recherche : les infos sont déjà connues, pas besoin de retélécharger.
+  function addFromInfo(info, status) {
+    const existing = fics.find((f) => f.url === info.url);
+    if (existing) return existing;
+    const fic = Object.assign({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      status: status || "toread", fav: false, stars: 0, lastRead: 0, notes: "",
+      shelves: [], newChapters: 0, addedAt: Date.now(), fetchedAt: Date.now(), error: "",
+    }, info);
+    fics.unshift(fic);
+    save();
+    render();
+    return fic;
+  }
+
+  window.FanficsApp = {
+    addLinks, addFromInfo, importData, download, cacheGet, cachePut, save, flush, render, toast, esc, fmt,
+    setLastRead, openDetail, backHandlers, settings, native,
+    get fics() { return fics; },
+    find: (id) => fics.find((f) => f.id === id),
+  };
+
   load();
   render();
   // Fanfics ajoutées mais jamais lues (app fermée pendant le téléchargement).
   for (const f of fics) if (!f.fetchedAt && !f.error) enqueue(f);
   if (native) Android.ready();
-
-  window.FanficsApp = { addLinks, importData, get fics() { return fics; } };
 })();

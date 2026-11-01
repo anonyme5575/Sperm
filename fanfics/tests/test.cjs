@@ -141,12 +141,99 @@ async function test(name, fn) {
     assert.strictEqual(r.summary, "Une fanfiction One Piece sur Zoro.");
     assert.strictEqual(r.chapters, null);
   });
+  const ev = (fn, ...args) => p.evaluate(fn, ...args);
+
+  await test("chapitres AO3 : liste", async () => {
+    const r = await ev((b) => Parsers.Chapters.parseList("https://archiveofourown.org/works/555", b), page("ao3-navigate.html"));
+    assert.deepStrictEqual(r, [
+      { title: "1. Beginnings", url: "https://archiveofourown.org/works/555/chapters/2001?view_adult=true" },
+      { title: "2. The Fall", url: "https://archiveofourown.org/works/555/chapters/2002?view_adult=true" },
+    ]);
+    assert.strictEqual(await ev(() => Parsers.Chapters.listUrl("https://archiveofourown.org/works/555")),
+      "https://archiveofourown.org/works/555/navigate?view_adult=true");
+  });
+
+  await test("chapitres AO3 : texte (paragraphes, sauts de ligne, séparateur)", async () => {
+    const r = await ev((b) => Parsers.Chapters.parseChapter("https://archiveofourown.org/works/555/chapters/2001?view_adult=true", b), page("ao3-ch1.html"));
+    assert.strictEqual(r.title, "Chapter 1: Beginnings");
+    assert.deepStrictEqual(r.paragraphs, ["Harry looked at the sky.", "It was dark.", "* * *", "Draco smiled, chapter 1."]);
+  });
+
+  await test("chapitres FanFiction.net : texte et liste depuis la page", async () => {
+    const r = await ev((b) => Parsers.Chapters.parseChapter("https://www.fanfiction.net/s/12345678/3/", b), page("ffn-ch3.html"));
+    assert.strictEqual(r.title, "Return");
+    assert.deepStrictEqual(r.paragraphs, ["Chapter three begins.", "Ginny waited."]);
+    assert.strictEqual(r.list.length, 24);
+    assert.deepStrictEqual(r.list[2], { title: "Return", url: "https://www.fanfiction.net/s/12345678/3/" });
+  });
+
+  await test("chapitres Wattpad : parties et texte", async () => {
+    const l = await ev((b) => Parsers.Chapters.parseList("https://www.wattpad.com/story/18225403", b), page("wattpad-parts.json"));
+    assert.deepStrictEqual(l[1], { title: "Chapitre 1", url: "https://www.wattpad.com/apiv2/storytext?id=902" });
+    const c = await ev((b) => Parsers.Chapters.parseChapter("https://www.wattpad.com/apiv2/storytext?id=901", b), page("wattpad-text.html"));
+    assert.deepStrictEqual(c.paragraphs, ["Il pleuvait sur Séoul.", "Jimin attendait."]);
+  });
+
+  await test("chapitres autre site : le bloc de texte principal", async () => {
+    const c = await ev((b) => Parsers.Chapters.parseChapter("https://exemple.fr/fic/1", b), page("generic-chapter.html"));
+    assert.strictEqual(c.paragraphs.length, 3);
+    assert.match(c.paragraphs[0], /^Zoro se réveilla/);
+  });
+
+  await test("recherche AO3 : adresse et résultats", async () => {
+    const u = await ev(() => Parsers.Search.url("ao3", "drarry slow", { language: "fr", complete: true, sort: "kudos_count" }, 2));
+    assert.strictEqual(u, "https://archiveofourown.org/works/search?work_search%5Bquery%5D=drarry%20slow&work_search%5Blanguage_id%5D=fr&work_search%5Bcomplete%5D=T&work_search%5Bsort_column%5D=kudos_count&work_search%5Bsort_direction%5D=desc&page=2");
+    const r = await ev((b) => Parsers.Search.parse("ao3", b), page("ao3-search.html"));
+    assert.strictEqual(r.next, true);
+    assert.strictEqual(r.results.length, 2);
+    const a = r.results[0];
+    assert.strictEqual(a.url, "https://archiveofourown.org/works/555");
+    assert.strictEqual(a.title, "Stars Fall");
+    assert.strictEqual(a.author, "Wren");
+    assert.strictEqual(a.rating, "Mature");
+    assert.deepStrictEqual(a.relationships, ["Draco Malfoy/Harry Potter"]);
+    assert.deepStrictEqual(a.tags, ["Slow Burn"]);
+    assert.strictEqual(a.words, 12000);
+    assert.strictEqual(a.complete, true);
+    assert.strictEqual(a.kudos, 999);
+    assert.strictEqual(a.summary, "Harry falls.\n\nDraco catches him.");
+    assert.strictEqual(r.results[1].language, "Français");
+  });
+
+  await test("recherche FanFiction.net : résultats", async () => {
+    const r = await ev((b) => Parsers.Search.parse("ffn", b), page("ffn-search.html"));
+    assert.strictEqual(r.next, true);
+    const a = r.results[0];
+    assert.strictEqual(a.url, "https://www.fanfiction.net/s/12345678/1/The-Long-Road-Home");
+    assert.strictEqual(a.title, "The Long Road Home");
+    assert.strictEqual(a.author, "Wanderer");
+    assert.deepStrictEqual(a.fandoms, ["Harry Potter"]);
+    assert.strictEqual(a.rating, "T");
+    assert.strictEqual(a.language, "English");
+    assert.strictEqual(a.words, 156789);
+    assert.strictEqual(a.complete, true);
+    assert.strictEqual(a.summary, "Harry finds a way back, but not to the world he left.");
+    assert.strictEqual(r.results[1].complete, false);
+    assert.strictEqual(r.results[1].rating, "K+");
+  });
+
+  await test("recherche Wattpad : résultats", async () => {
+    const r = await ev((b) => Parsers.Search.parse("wattpad", b), page("wattpad-search.json"));
+    assert.strictEqual(r.next, true);
+    assert.strictEqual(r.results[0].url, "https://www.wattpad.com/story/18225403");
+    assert.strictEqual(r.results[0].chapters, 42);
+  });
   await p.close();
 
   // ---------------------------------------------------------------- l'app entière
   // Faux pont Android : sert les pages d'exemple, garde les données en mémoire.
   const ao3v2 = page("ao3.html").replace(">12</a>/?", ">14</a>/?");
   const routes = {
+    "https://archiveofourown.org/works/search?work_search%5Bquery%5D=drarry": { ok: true, status: 200, body: page("ao3-search.html") },
+    "https://archiveofourown.org/works/555/navigate?view_adult=true": { ok: true, status: 200, body: page("ao3-navigate.html") },
+    "https://archiveofourown.org/works/555/chapters/2001?view_adult=true": { ok: true, status: 200, body: page("ao3-ch1.html") },
+    "https://archiveofourown.org/works/555/chapters/2002?view_adult=true": { ok: true, status: 200, body: page("ao3-ch2.html") },
+    "https://www.fanfiction.net/s/12345678/3/": { ok: true, status: 200, body: page("ffn-ch3.html") },
     "https://archiveofourown.org/works/123?view_adult=true": { ok: true, status: 200, body: page("ao3.html") },
     "https://archiveofourown.org/works/9?view_adult=true": { ok: true, status: 200, body: page("ao3-complete.html") },
     "https://www.fanfiction.net/s/12345678/1/": { ok: true, status: 200, body: page("ffn.html") },
@@ -155,20 +242,35 @@ async function test(name, fn) {
     "https://www.fanfiction.net/s/1/1/": { ok: false, status: 503, error: "Le site bloque la lecture automatique (protection anti-robot)." },
   };
   const ctx = await browser.newContext({ viewport: { width: 400, height: 860 } });
-  await ctx.exposeBinding("__route", (src, url) => routes[url] || { ok: false, status: 404, error: "Page introuvable" });
+  const calls = [];
+  await ctx.exposeBinding("__route", (src, url) => {
+    calls.push(url);
+    if (url.startsWith("https://translate.googleapis.com/")) {
+      const q = new URL(url).searchParams.get("q");
+      const lines = q.split("\n");
+      const fr = /Un hiver|Il pleuvait/.test(q);
+      const seg = lines.map((l, i) => [(fr ? "" : "[FR] ") + l + (i < lines.length - 1 ? "\n" : ""), l]);
+      return { ok: true, status: 200, body: JSON.stringify([seg, null, fr ? "fr" : "en"]) };
+    }
+    return routes[url] || { ok: false, status: 404, error: "Page introuvable" };
+  });
   await ctx.addInitScript(() => {
     const results = {};
     window.__store = "";
     window.__opened = [];
     window.__inbox = "";
     window.__viaBrowser = [];
+    window.__cache = {};
     window.__browserOk = { "https://exemple.fr/protege": 1 };
     window.Android = {
       load: () => window.__store,
       save: (j) => { window.__store = j; },
       fetch: (id, url) => window.__route(url).then((r) => { results[id] = JSON.stringify(r); window.__fetched(id); }),
-      fetchBrowser: (id, url) => { window.__viaBrowser.push(url); window.Android.fetch(id, url + (window.__browserOk[url] ? "#browser" : "")); },
+      fetchBrowser: (id, url, ready) => { window.__viaBrowser.push(url); window.__ready = ready; window.Android.fetch(id, url + (window.__browserOk[url] ? "#browser" : "")); },
       take: (id) => results[id],
+      cacheGet: (k) => (k in window.__cache ? window.__cache[k] : null),
+      cachePut: (k, v) => { window.__cache[k] = v; },
+      cacheClear: () => { window.__cache = {}; },
       takeShared: () => { const t = window.__inbox; window.__inbox = ""; return t; },
       ready: () => {},
       open: (u) => window.__opened.push(u),
@@ -181,7 +283,7 @@ async function test(name, fn) {
   const errors = [];
   app.on("pageerror", (e) => errors.push(e.message));
   await app.goto("file://" + path.join(WEB, "index.html"));
-  const titles = () => app.$$eval(".card .t", (els) => els.map((e) => e.textContent));
+  const titles = () => app.$$eval("#list .card .t", (els) => els.map((e) => e.textContent));
   const waitIdle = () => app.waitForFunction(() => document.getElementById("progress").hidden && !document.querySelector(".loading"), null, { timeout: 30000 });
 
   await test("app : liste vide expliquée", async () => {
@@ -235,7 +337,7 @@ async function test(name, fn) {
   });
 
   await test("app : fiche — statut, note, chapitre lu, notes, ouverture", async () => {
-    await app.click(".card:has-text('The Long Road Home')");
+    await app.click("#list .card:has-text('The Long Road Home')");
     await app.click("[data-status=reading]");
     await app.click("[data-star='4']");
     await app.click("[data-act=plus]");
@@ -257,7 +359,7 @@ async function test(name, fn) {
   });
 
   await test("app : modification à la main d'une fic non lue", async () => {
-    await app.click(".card:has-text('Fic Bloquee')");
+    await app.click("#list .card:has-text('Fic Bloquee')");
     await app.click("[data-act=edit]");
     await app.fill("#eTitle", "Fic Bloquée");
     await app.fill("#eAuthor", "Quelqu'un");
@@ -265,7 +367,7 @@ async function test(name, fn) {
     await app.fill("#eCh", "5");
     await app.click("[data-act=saveEdit]");
     await app.click("#detail [data-close]");
-    const txt = await app.textContent(".card:has-text('Fic Bloquée')");
+    const txt = await app.textContent("#list .card:has-text('Fic Bloquée')");
     assert.match(txt, /Quelqu'un/);
     assert.match(txt, /5\/\? chap\./);
     assert.doesNotMatch(txt, /infos non lues/);
@@ -278,7 +380,7 @@ async function test(name, fn) {
     await app.waitForFunction(() => document.querySelector("#tabs [data-tab=new]"));
     assert.deepStrictEqual(await titles(), ["Le Dernier Hiver"]);
     assert.match(await app.textContent("#list"), /\+2 chap\./);
-    await app.click(".card");
+    await app.click("#list .card");
     await app.click("[data-act=seen]");
     await app.click("#detail [data-close]");
     assert.strictEqual(await app.$("#tabs [data-tab=new]"), null);
@@ -316,10 +418,111 @@ async function test(name, fn) {
     assert.strictEqual(f.stars, 4);
   });
 
+  await test("app : recherche AO3, résumés traduits, ajout", async () => {
+    await app.click("#btnSearch");
+    await app.fill("#sQuery", "drarry");
+    await app.press("#sQuery", "Enter");
+    await app.waitForSelector(".sres");
+    assert.deepStrictEqual(await app.$$eval(".sres .t", (e) => e.map((x) => x.textContent)), ["Stars Fall", "Hiver"]);
+    await app.waitForFunction(() => /\[FR\] Harry falls/.test(document.querySelector(".sres .ssum").textContent));
+    // Le résumé déjà en français n'est pas envoyé à la traduction.
+    assert.strictEqual(await app.textContent(".sres[data-i='1'] .ssum"), "Un hiver à Poudlard.");
+    assert.ok(!calls.some((u) => u.includes("translate") && decodeURIComponent(u).includes("Un hiver")));
+    await app.click(".sres[data-i='1'] [data-s=add]");
+    assert.match(await app.textContent(".sres[data-i='1']"), /Dans ta liste/);
+  });
+
+  await test("app : lecture d'un chapitre traduit depuis la recherche", async () => {
+    await app.click(".sres[data-i='0'] [data-s=read]");
+    await app.waitForSelector("#reader:not([hidden])");
+    await app.waitForFunction(() => /Traduit automatiquement/.test(document.getElementById("rBanner").textContent));
+    const txt = await app.textContent("#rBody");
+    assert.match(txt, /\[FR\] Chapter 1: Beginnings/);
+    assert.match(txt, /\[FR\] Harry looked at the sky\./);
+    assert.strictEqual(await app.textContent("#rCh"), "Chapitre 1/2");
+    await app.click("#rBanner [data-r=showOrig]");
+    assert.match(await app.textContent("#rBody"), /^Chapter 1: Beginnings/);
+    assert.doesNotMatch(await app.textContent("#rBody"), /\[FR\]/);
+  });
+
+  await test("app : chapitre suivant, progression, chapitre préparé à l'avance", async () => {
+    const before = calls.length;
+    await app.click("#rBody [data-r=next]");
+    await app.waitForFunction(() => /\[FR\] Draco smiled, chapter 2/.test(document.getElementById("rBody").textContent));
+    // Le chapitre 2 et sa traduction étaient déjà prêts : aucun nouveau téléchargement.
+    assert.deepStrictEqual(calls.slice(before), []);
+    assert.match(await app.textContent("#rBody .rend"), /Fin\./);
+    const f = await app.evaluate(() => window.FanficsApp.fics.find((x) => x.title === "Stars Fall"));
+    assert.strictEqual(f.lastRead, 1);
+    assert.strictEqual(f.readCh, 2);
+    assert.strictEqual(f.status, "reading");
+  });
+
+  await test("app : retour ferme le lecteur, puis la recherche", async () => {
+    assert.strictEqual(await app.evaluate(() => window.__back()), true);
+    assert.strictEqual(await app.isHidden("#reader"), true);
+    assert.strictEqual(await app.isVisible("#searchView"), true);
+    assert.strictEqual(await app.evaluate(() => window.__back()), true);
+    assert.strictEqual(await app.isHidden("#searchView"), true);
+    assert.ok((await titles()).includes("Stars Fall"));
+  });
+
+  await test("app : reprise de lecture hors ligne (cache)", async () => {
+    const before = calls.length;
+    await app.click("#list .card:has-text('Stars Fall')");
+    assert.match(await app.textContent("#detail [data-act=read]"), /Reprendre au chap\. 2/);
+    await app.click("#detail [data-act=read]");
+    await app.waitForFunction(() => /\[FR\] Draco smiled, chapter 2/.test(document.getElementById("rBody").textContent));
+    // Seul le résumé de la fiche a été traduit ; le chapitre vient du téléphone.
+    assert.deepStrictEqual(calls.slice(before).filter((u) => !u.includes("Harry%20falls")), []);
+    await app.evaluate(() => window.__back());
+  });
+
+  await test("app : FanFiction.net — reprise au chapitre suivant, par le navigateur intégré", async () => {
+    await app.click("#list .card:has-text('The Long Road Home')");
+    await app.click("#detail [data-act=read]");
+    await app.waitForFunction(() => /\[FR\] Chapter three begins/.test(document.getElementById("rBody").textContent));
+    assert.strictEqual(await app.textContent("#rCh"), "Chapitre 3/24");
+    assert.strictEqual(await app.evaluate(() => window.__ready), "#storytext");
+    assert.match(await app.textContent("#rList option[selected]"), /3\. Return/);
+    await app.evaluate(() => window.__back());
+  });
+
+  await test("app : résumé de la fiche traduit, bouton original", async () => {
+    await app.click("#list .card:has-text('Stars Fall')");
+    await app.waitForFunction(() => /\[FR\] Harry falls/.test(document.getElementById("dSummary").textContent));
+    await app.click("#trSummaryBtn");
+    assert.strictEqual(await app.textContent("#dSummary"), "Harry falls.\n\nDraco catches him.");
+    await app.evaluate(() => window.__back());
+  });
+
+  await test("app : traduction coupée dans les réglages", async () => {
+    await app.click("#btnMenu");
+    await app.uncheck("#setAuto");
+    await app.click("#menu [data-close]");
+    await app.click("#list .card:has-text('Stars Fall')");
+    await app.click("#detail [data-act=read]");
+    await app.waitForFunction(() => /Draco smiled, chapter 2/.test(document.getElementById("rBody").textContent));
+    assert.doesNotMatch(await app.textContent("#rBody"), /\[FR\]/);
+    assert.match(await app.textContent("#rBanner"), /Texte original/);
+    await app.evaluate(() => window.__back());
+    await app.click("#btnMenu");
+    await app.check("#setAuto");
+    await app.click("#menu [data-close]");
+  });
+
   await app.waitForTimeout(3500); // laisse partir le message
   await app.screenshot({ path: path.join(__dirname, "capture.png") });
-  await app.click(".card:has-text('Le Dernier Hiver')");
+  await app.click("#list .card:has-text('Le Dernier Hiver')");
   await app.screenshot({ path: path.join(__dirname, "capture-fiche.png"), fullPage: true });
+  await app.evaluate(() => window.__back());
+  await app.click("#list .card:has-text('Stars Fall')");
+  await app.click("#detail [data-act=read]");
+  await app.waitForFunction(() => /\[FR\] Draco smiled/.test(document.getElementById("rBody").textContent));
+  await app.screenshot({ path: path.join(__dirname, "capture-lecteur.png") });
+  await app.evaluate(() => window.__back());
+  await app.click("#btnSearch");
+  await app.screenshot({ path: path.join(__dirname, "capture-recherche.png") });
   await test("app : aucune erreur JavaScript", async () => assert.deepStrictEqual(errors, []));
 
   await browser.close();

@@ -9,6 +9,25 @@ App Android pour ranger les fanfics que tu aimes à partir de leurs liens.
 - **Nouveaux chapitres** : le bouton ⟳ relit toutes les fanfics pas encore terminées et regroupe celles qui ont de nouveaux chapitres dans l'onglet « Nouveaux chapitres ».
 - **Sauvegarde** : menu ⋮ > « Sauvegarder ma liste » crée un fichier `.json` (à mettre sur Drive, par exemple) ; « Restaurer une sauvegarde » le relit. La liste suit aussi la sauvegarde Google du téléphone.
 
+## Lire dans l'app
+
+- **📖 Lire** (dans la fiche ou dans les résultats de recherche) ouvre le lecteur : liste des chapitres, ◀ ▶, taille du texte A− / A+.
+- L'app retient le chapitre et l'endroit où tu t'es arrêtée ; « Reprendre au chap. N » te ramène pile là. Un chapitre lu jusqu'en bas compte comme lu.
+- Le chapitre suivant est préparé pendant que tu lis. Les chapitres déjà ouverts restent sur le téléphone : ils se relisent sans Internet.
+- AO3, FanFiction.net, Wattpad ; pour les autres sites, l'app prend le plus gros bloc de texte de la page.
+
+## Traduction automatique
+
+- Les chapitres et les résumés qui ne sont pas en français sont traduits automatiquement (bandeau « Traduit automatiquement · Voir l'original »).
+- Menu ⋮ : activer ou couper la traduction, choisir la langue (français, anglais, espagnol, allemand, italien, portugais).
+- La traduction passe par le service gratuit de Google Traduction : le texte des chapitres est envoyé à Google. Ce service n'est pas officiellement prévu pour les apps ; s'il refuse (trop de demandes), réessaie plus tard.
+
+## Rechercher des fanfics
+
+- Bouton 🔍 : recherche sur AO3, FanFiction.net ou Wattpad (titre, fandom, personnage, couple, tag…).
+- Sur AO3 : filtre par langue, « Terminées » seulement, tri par kudos, mise à jour, vues ou longueur.
+- Chaque résultat : **+ Ajouter** à ta liste, ou **📖 Lire** tout de suite. Les résumés étrangers sont traduits.
+
 ## Installation
 
 Copie `dist/mes-fanfics.apk` sur le téléphone, ouvre-le et autorise l'installation depuis des sources inconnues. Android 8 ou plus.
@@ -35,6 +54,7 @@ fanfics/android/build.sh      # -> dist/mes-fanfics.apk (JDK 17+, curl, unzip, z
 node fanfics/tests/test.cjs   # tests dans Chromium (Playwright)
 ```
 
-- `web/parsers.js` : reconnaissance des liens et lecture des pages de chaque site.
+- `web/parsers.js` : reconnaissance des liens, lecture des pages, des chapitres et des résultats de recherche de chaque site.
+- `web/reader.js` : le lecteur. `web/translate.js` : la traduction. `web/search.js` : la recherche.
 - `web/app.js` : l'interface. `android/.../MainActivity.java` : télécharge les pages, garde la liste dans `fanfics.json`, reçoit les partages.
 - Les pages de `tests/pages/` sont des reconstitutions de la structure de chaque site, pas des copies récentes.

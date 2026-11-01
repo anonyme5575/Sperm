@@ -552,6 +552,11 @@ async function test(name, fn) {
     // Le résumé déjà en français n'est pas envoyé à la traduction.
     assert.strictEqual(await app.textContent(".sres[data-i='1'] .ssum"), "Un hiver à Poudlard.");
     assert.ok(!calls.some((u) => u.includes("translate") && decodeURIComponent(u).includes("Un hiver")));
+    // Toucher la carte : résumé complet et tous les tags ; re-toucher : replié.
+    await app.click(".sres[data-i='0'] .t");
+    assert.ok(await app.$(".sres[data-i='0'].open"));
+    await app.click(".sres[data-i='0'] .t");
+    assert.ok(!(await app.$(".sres[data-i='0'].open")), "replié");
     await app.click(".sres[data-i='1'] [data-s=add]");
     assert.match(await app.textContent(".sres[data-i='1']"), /Dans ta liste/);
   });
@@ -792,7 +797,7 @@ async function test(name, fn) {
     await app.waitForFunction(() => document.querySelectorAll(".sres .t").length === 2);
     await app.click("#sSections [data-sec='2']");
     await app.waitForFunction(() => document.querySelectorAll(".person").length === 2);
-    const tried = calls.filter((u) => /users\/jose\/(stories|lists)/.test(u)).map((u) => u.replace(/\?.*/, ""));
+    const tried = calls.filter((u) => /users\/jose\/(stories|lists)/.test(u)).map((u) => u.replace(/\?.*/, "")).filter((u, i, a) => a.indexOf(u) === i); // la suite se charge seule
     assert.deepStrictEqual(tried, [
       "https://www.wattpad.com/v4/users/jose/stories/published",
       "https://www.wattpad.com/api/v3/users/jose/stories",

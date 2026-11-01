@@ -38,10 +38,10 @@
     const nn = (x) => String(x).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const hit = (t) => want.some((w) => nn(t).includes(w));
     const all = [...(r.relationships || []), ...(r.tags || [])];
-    const tags = [...all.filter(hit), ...all.filter((t) => !hit(t))].slice(0, 6);
+    const tags = [...all.filter(hit), ...all.filter((t) => !hit(t))].slice(0, r.open ? 999 : 6);
     const mine = inList(r);
     const summary = r.summaryTr && !r.showOrig ? r.summaryTr : r.summary;
-    return `<article class="card sres" data-i="${i}" style="--i:${i % 12}">
+    return `<article class="card sres${r.open ? " open" : ""}" data-i="${i}" data-s="toggle" style="--i:${i % 12}">
       <div class="crow">
         ${A.cover(r, "sm")}
         <div class="cbody">
@@ -124,10 +124,11 @@
     let html = state.mode === "list" && state.list.hero ? state.list.hero() : "";
     if (state.note && state.mode === "stories") html += `<p class="hint tip">${esc(state.note)}</p>`;
     html += state.results.map(card).join("");
-    if (state.loading) html += `<div class="rwait"><div class="spinner"></div>${state.mode === "accounts" ? "Recherche du compte sur les trois sites…" : "Chargement…"}${state.site === "ffn" || state.mode !== "stories" ? "<br><small>FanFiction.net peut prendre quelques secondes.</small>" : ""}</div>`;
+    if (state.loading && state.results.length && state.page > 1) html += `<div class="rwait"><div class="spinner"></div></div>`;
+    else if (state.loading) html += `<div class="rwait"><div class="spinner"></div>${state.mode === "accounts" ? "Recherche du compte sur les trois sites…" : "Chargement…"}${state.site === "ffn" || state.mode !== "stories" ? "<br><small>FanFiction.net peut prendre quelques secondes.</small>" : ""}</div>`;
     else if (state.error) html += `<p class="rwait">${esc(state.error)}</p>`;
     else if (!state.results.some((r) => r.kind !== "login") && emptyText()) html += `<p class="rwait">${esc(emptyText())}</p>`;
-    else if (state.next) html += `<div class="actions" style="justify-content:center"><button class="ghost" data-s="more">Plus de résultats</button></div>`;
+    else if (state.next) html += `<div id="sMore" class="rwait"><div class="spinner"></div></div>`;
     if (state.mode === "accounts" && !state.q && !state.loading) {
       // Écran d'accueil des auteurs : nouveautés, mes auteurs favoris, puis la recherche par pseudo.
       html = newsHtml() + (state.results.length
@@ -138,7 +139,14 @@
       html = `<div class="welcome"><div class="big">✨</div><b>Trouve ta prochaine fanfic</b><p>Un titre, un fandom, un personnage, un couple ou un tag.<br>Ex. « Drarry slow burn », « Naruto », « enemies to lovers ».</p></div>`;
     }
     box.innerHTML = html;
+    const more = $("sMore");
+    if (more) moreObs.observe(more);
   }
+
+  // En approchant du bas : la suite se charge toute seule.
+  const moreObs = new IntersectionObserver((es) => {
+    if (es.some((e) => e.isIntersecting) && state.next && !state.loading) { moreObs.disconnect(); run(true); }
+  }, { root: $("sResults"), rootMargin: "600px" });
 
   // Traduit les résumés des résultats qui ne sont pas dans la langue choisie (une seule série de requêtes).
   async function translateSummaries(items, t) {
@@ -244,7 +252,7 @@
     });
     const raw = [], seen = new Set();
     let next = false, errors = 0;
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < (more ? 5 : 2); i++) {
       if (i) state.page++;
       const pages = await Promise.all(jobs.map(([q, k]) => (k == null ? wattpadPage(q, state.page)
         : A.download(S.wattpadUrls(q, state.page)[k], "wattpad").then((b) => S.parse("wattpad", b))).catch(() => { errors++; return null; })));
@@ -254,7 +262,8 @@
         next = next || r.next;
         for (const x of r.results) if (!seen.has(x.url)) { seen.add(x.url); raw.push(x); }
       }
-      if (!next || S.refine(raw, state.q, f).length >= 20) break;
+      const good = S.refine(raw, state.q, f).filter((x) => !state.results.some((y) => y.url === x.url)).length;
+      if (!next || good >= (more ? 5 : 20)) break;
     }
     if (!raw.length && errors) throw new Error("Wattpad ne répond pas à la recherche.");
     f.stats = {};
@@ -420,6 +429,7 @@
       case "add": A.addFromInfo(info(r)); A.toast("Ajoutée à ta liste."); render(); break;
       case "detail": A.openDetail(inList(r).id); break;
       case "read": A.openReader(A.addFromInfo(info(r)).id); render(); break;
+      case "toggle": if (e.target.closest("button, a")) return; r.open = !r.open; render(); break;
       case "orig": r.showOrig = true; render(); break;
       case "tr": r.showOrig = false; render(); break;
       case "fav": A.toggleAuthor(r); render(); break;

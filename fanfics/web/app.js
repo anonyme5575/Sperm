@@ -62,12 +62,23 @@
     if (cb) cb(JSON.parse(Android.take(id)));
   };
 
-  function download(url) {
+  function nativeCall(method, url) {
+    return new Promise((resolve, reject) => {
+      const id = "f" + ++seq;
+      pending[id] = (r) => (r.ok ? resolve(r.body) : reject(new Error(r.error || "Erreur " + r.status)));
+      Android[method](id, url);
+    });
+  }
+
+  // FanFiction.net passe directement par le navigateur intégré (vérification anti-robot) ;
+  // les autres sites aussi, mais seulement si la lecture simple se fait bloquer.
+  function download(url, site) {
     if (native) {
-      return new Promise((resolve, reject) => {
-        const id = "f" + ++seq;
-        pending[id] = (r) => (r.ok ? resolve(r.body) : reject(new Error(r.error || "Erreur " + r.status)));
-        Android.fetch(id, url);
+      const browser = typeof Android.fetchBrowser === "function";
+      if (browser && site === "ffn") return nativeCall("fetchBrowser", url);
+      return nativeCall("fetch", url).catch((e) => {
+        if (browser && /anti-robot/.test(e.message)) return nativeCall("fetchBrowser", url);
+        throw e;
       });
     }
     return fetch(url).then((r) => {
@@ -116,7 +127,7 @@
 
   async function refresh(fic, opts) {
     try {
-      const body = await download(P.fetchUrl(fic.url));
+      const body = await download(P.fetchUrl(fic.url), fic.site);
       const info = P.parse(fic.url, body);
       const before = fic.chapters;
       for (const k of Object.keys(info)) {

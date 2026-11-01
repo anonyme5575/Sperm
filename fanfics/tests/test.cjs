@@ -140,6 +140,8 @@ async function test(name, fn) {
     "https://archiveofourown.org/works/123?view_adult=true": { ok: true, status: 200, body: page("ao3.html") },
     "https://archiveofourown.org/works/9?view_adult=true": { ok: true, status: 200, body: page("ao3-complete.html") },
     "https://www.fanfiction.net/s/12345678/1/": { ok: true, status: 200, body: page("ffn.html") },
+    "https://exemple.fr/protege": { ok: false, status: 403, error: "Le site bloque la lecture automatique (protection anti-robot)." },
+    "https://exemple.fr/protege#browser": { ok: true, status: 200, body: page("generic.html") },
     "https://www.fanfiction.net/s/1/1/": { ok: false, status: 503, error: "Le site bloque la lecture automatique (protection anti-robot)." },
   };
   const ctx = await browser.newContext({ viewport: { width: 400, height: 860 } });
@@ -149,10 +151,13 @@ async function test(name, fn) {
     window.__store = "";
     window.__opened = [];
     window.__inbox = "";
+    window.__viaBrowser = [];
+    window.__browserOk = { "https://exemple.fr/protege": 1 };
     window.Android = {
       load: () => window.__store,
       save: (j) => { window.__store = j; },
       fetch: (id, url) => window.__route(url).then((r) => { results[id] = JSON.stringify(r); window.__fetched(id); }),
+      fetchBrowser: (id, url) => { window.__viaBrowser.push(url); window.Android.fetch(id, url + (window.__browserOk[url] ? "#browser" : "")); },
       take: (id) => results[id],
       takeShared: () => { const t = window.__inbox; window.__inbox = ""; return t; },
       ready: () => {},
@@ -188,6 +193,18 @@ async function test(name, fn) {
     assert.match(txt, /infos non lues/);
     assert.match(txt, /Été 2024/);
     assert.strictEqual(await app.evaluate(() => window.PWNED), undefined);
+  });
+
+  await test("app : FanFiction.net passe par le navigateur intégré", async () => {
+    const via = await app.evaluate(() => window.__viaBrowser);
+    assert.deepStrictEqual(via.sort(), ["https://www.fanfiction.net/s/1/1/Fic-Bloquee", "https://www.fanfiction.net/s/12345678/1/"]);
+  });
+
+  await test("app : site bloqué -> nouvel essai par le navigateur intégré", async () => {
+    await app.evaluate(() => window.FanficsApp.addLinks("https://exemple.fr/protege", "toread", ""));
+    await waitIdle();
+    assert.ok((await titles()).includes("Rien n'est éternel"));
+    await app.evaluate(() => { const f = window.FanficsApp.fics; f.splice(f.findIndex((x) => x.url === "https://exemple.fr/protege"), 1); });
   });
 
   await test("app : doublon refusé", async () => {

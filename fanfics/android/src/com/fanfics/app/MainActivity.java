@@ -7,6 +7,10 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
+import android.view.Gravity;
+import android.view.View;
+import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -14,8 +18,13 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
@@ -27,6 +36,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -49,6 +59,7 @@ public class MainActivity extends Activity {
     private final ExecutorService pool = Executors.newFixedThreadPool(2);
     private final Map<String, String> results = new ConcurrentHashMap<>();
     private WebView web;
+    private FrameLayout root;
     private boolean ready;
     private volatile String inbox;      // texte partagé ou fichier importé, en attente pour la page
     private String inboxCallback = "__shared";
@@ -77,7 +88,9 @@ public class MainActivity extends Activity {
                 return true;
             }
         });
-        setContentView(web);
+        root = new FrameLayout(this);
+        root.addView(web);
+        setContentView(root);
         web.loadUrl("file:///android_asset/index.html");
         handleIntent(getIntent());
     }
@@ -105,6 +118,7 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (bShown) { finishBrowser(error("Vérification annulée.")); return; }
         web.evaluateJavascript("window.__back ? window.__back() : false", new ValueCallback<String>() {
             @Override
             public void onReceiveValue(String v) {
@@ -208,7 +222,7 @@ public class MainActivity extends Activity {
                 r.put("ok", false);
                 r.put("error", code == 429 ? "Le site demande de ralentir : réessaie dans quelques minutes."
                         : code == 404 ? "Page introuvable (supprimée ou lien erroné)."
-                        : (code == 403 || code == 503) && body.contains("challenge")
+                        : (code == 403 || code == 503) && (body.contains("challenge") || body.contains("Just a moment"))
                         ? "Le site bloque la lecture automatique (protection anti-robot)."
                         : "Le site a répondu " + code + ".");
                 return r;
@@ -220,6 +234,148 @@ public class MainActivity extends Activity {
         r.put("ok", false);
         r.put("error", "Trop de redirections.");
         return r;
+    }
+
+    // ------------------------------------------------------------ navigateur intégré
+    // Certains sites (FanFiction.net) ne s'affichent qu'à un vrai navigateur qui passe leur
+    // vérification anti-robot. On charge donc la page dans une WebView placée derrière
+    // l'interface, et on la montre seulement si la vérification demande de cocher une case.
+    // Les cookies de vérification sont gardés : les fois suivantes, ça passe sans rien demander.
+
+    private static final String PROBE = "(function(){var d=document;"
+            + "if(d.querySelector('#profile_top'))return 'OK'+d.documentElement.outerHTML;"
+            + "var t=(d.title||'')+' '+(d.body?d.body.innerText.slice(0,3000):'');"
+            + "if(/just a moment|un instant|verify you are human|v\u00e9rifi|checking your browser|cloudflare|ddos/i.test(t))return 'WAIT';"
+            + "if(/maintenance/i.test(t))return 'MAINT';"
+            + "if(d.readyState==='complete'&&d.body&&d.body.innerText.length>200)return 'OK'+d.documentElement.outerHTML;"
+            + "return 'WAIT';})()";
+
+    private final ArrayDeque<String[]> bQueue = new ArrayDeque<>();
+    private WebView browser;
+    private LinearLayout browserBox;
+    private View browserBar;
+    private String bId;
+    private long bStart;
+    private boolean bShown;
+
+    private final Runnable poll = new Runnable() {
+        @Override
+        public void run() {
+            if (bId == null) return;
+            final String id = bId;
+            browser.evaluateJavascript(PROBE, new ValueCallback<String>() {
+                @Override
+                public void onReceiveValue(String v) {
+                    if (!id.equals(bId)) return;
+                    String r = "";
+                    try { r = new JSONArray("[" + v + "]").optString(0, ""); } catch (Exception ignored) { }
+                    long elapsed = SystemClock.uptimeMillis() - bStart;
+                    try {
+                        if (r.startsWith("OK")) {
+                            CookieManager.getInstance().flush();
+                            JSONObject o = new JSONObject();
+                            o.put("ok", true);
+                            o.put("status", 200);
+                            o.put("body", r.substring(2));
+                            finishBrowser(o.toString());
+                        } else if (r.equals("MAINT")) {
+                            finishBrowser(error("Le site est en maintenance : réessaie plus tard."));
+                        } else if (elapsed > 150000) {
+                            finishBrowser(error("La vérification anti-robot n'a pas abouti."));
+                        } else {
+                            if (elapsed > 7000 && !bShown) showBrowser();
+                            ui.postDelayed(poll, 1000);
+                        }
+                    } catch (Exception e) {
+                        finishBrowser(error(e.getMessage()));
+                    }
+                }
+            });
+        }
+    };
+
+    private static String error(String msg) {
+        return "{\"ok\":false,\"error\":" + JSONObject.quote(msg) + "}";
+    }
+
+    private void browserFetch(String id, String url) {
+        bQueue.add(new String[]{id, url});
+        if (bId == null) nextBrowser();
+    }
+
+    private void nextBrowser() {
+        String[] job = bQueue.poll();
+        if (job == null) {
+            bId = null;
+            if (browser != null) browser.loadUrl("about:blank");
+            return;
+        }
+        ensureBrowser();
+        bId = job[0];
+        bStart = SystemClock.uptimeMillis();
+        browser.loadUrl(job[1]);
+        ui.postDelayed(poll, 1500);
+    }
+
+    private void finishBrowser(String json) {
+        if (bId == null) return;
+        ui.removeCallbacks(poll);
+        results.put(bId, json);
+        String id = bId;
+        bId = null;
+        hideBrowser();
+        web.evaluateJavascript("window.__fetched(" + JSONObject.quote(id) + ")", null);
+        nextBrowser();
+    }
+
+    private void ensureBrowser() {
+        if (browser != null) return;
+        browser = new WebView(this);
+        WebSettings s = browser.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        // Même identité que Chrome sur ce téléphone (sans la mention « wv » propre aux WebView).
+        s.setUserAgentString(s.getUserAgentString().replace("; wv)", ")"));
+        CookieManager.getInstance().setAcceptCookie(true);
+        CookieManager.getInstance().setAcceptThirdPartyCookies(browser, true);
+        browser.setWebViewClient(new WebViewClient());
+
+        browserBox = new LinearLayout(this);
+        browserBox.setOrientation(LinearLayout.VERTICAL);
+        browserBox.setBackgroundColor(0xFF16141A);
+        LinearLayout bar = new LinearLayout(this);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setPadding(24, 16, 16, 16);
+        bar.setBackgroundColor(0xFF2C2834);
+        TextView msg = new TextView(this);
+        msg.setTextColor(0xFFF1EEF5);
+        msg.setText("Le site vérifie que tu n'es pas un robot. Si une case apparaît, coche-la : la fanfic sera ajoutée toute seule.");
+        bar.addView(msg, new LinearLayout.LayoutParams(0, -2, 1));
+        Button close = new Button(this);
+        close.setText("Annuler");
+        close.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) { finishBrowser(error("Vérification annulée.")); }
+        });
+        bar.addView(close);
+        bar.setVisibility(View.GONE);
+        browserBar = bar;
+        browserBox.addView(bar, new LinearLayout.LayoutParams(-1, -2));
+        browserBox.addView(browser, new LinearLayout.LayoutParams(-1, 0, 1));
+        root.addView(browserBox, 0); // derrière l'interface : chargée et active, mais pas visible
+    }
+
+    private void showBrowser() {
+        bShown = true;
+        browserBar.setVisibility(View.VISIBLE);
+        browserBox.bringToFront();
+    }
+
+    private void hideBrowser() {
+        if (!bShown) return;
+        bShown = false;
+        browserBar.setVisibility(View.GONE);
+        web.bringToFront();
     }
 
     // ------------------------------------------------------------ pont JavaScript
@@ -264,6 +420,12 @@ public class MainActivity extends Activity {
                 results.put(id, out);
                 js("window.__fetched(" + JSONObject.quote(id) + ")");
             }});
+        }
+
+        /** Comme fetch, mais à travers le navigateur intégré (pages protégées contre les robots). */
+        @JavascriptInterface
+        public void fetchBrowser(final String id, final String url) {
+            ui.post(new Runnable() { @Override public void run() { browserFetch(id, url); } });
         }
 
         @JavascriptInterface

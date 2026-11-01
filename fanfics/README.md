@@ -19,8 +19,8 @@ Copie `dist/mes-fanfics.apk` sur le téléphone, ouvre-le et autorise l'installa
 |---|---|
 | Archive of Our Own | Tout (y compris les fanfics « adultes »). Les fanfics réservées aux membres connectés ne sont pas lisibles : remplis-les avec **Modifier**. |
 | Wattpad | Titre, auteur, résumé, tags, nombre de parties, terminée ou non. |
-| FanFiction.net | Tout, **quand le site laisse passer**. Il est souvent protégé par une page anti-robot : dans ce cas la fanfic est ajoutée avec le titre tiré du lien et tu complètes avec **Modifier**. « Ouvrir » t'emmène au chapitre suivant celui que tu as lu. |
-| Autres sites | Titre, résumé et auteur quand la page les annonce (balises de partage). |
+| FanFiction.net | Tout. La page est chargée dans un navigateur intégré à l'app, comme si tu l'ouvrais toi-même, pour passer la vérification anti-robot. Si le site demande de cocher une case, l'app te montre la page : coche-la et la fanfic s'ajoute. Ensuite le site s'en souvient et ne redemande plus pendant un moment. S'il est en maintenance, réessaie plus tard. « Ouvrir » t'emmène au chapitre suivant celui que tu as lu. |
+| Autres sites | Titre, résumé et auteur quand la page les annonce (balises de partage). Si le site bloque la lecture, l'app réessaie avec le navigateur intégré. |
 
 Si un site change sa mise en page, la lecture des infos peut casser pour ce site : la fanfic reste ajoutée et modifiable à la main.
 

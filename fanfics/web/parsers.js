@@ -667,7 +667,8 @@
     const out = [];
     for (const r of results) {
       const title = norm(r.title), tags = (r.tags || []).map(norm), author = norm(r.author), desc = norm(r.summary);
-      const all = [title, tags.join(" "), author, desc].join(" \n ");
+      const all = [title, tags.join(" "), desc].join(" \n "); // l'auteur ne compte qu'avec @pseudo
+      const strong = title + " \n " + tags.join(" ");
       const byFilter = (f.complete && !r.complete) || (f.noMature && r.mature) ||
         (f.language && !norm(r.language).startsWith(norm(f.language).slice(0, 4)));
       if (byFilter) { if (f.stats) f.stats.filtered = (f.stats.filtered || 0) + 1; continue; }
@@ -686,6 +687,8 @@
         score += (title.includes(w) ? 10 : 0) + (whole ? 5 : 0) + (tags.some((t) => t.includes(w)) ? 6 : 0) + (author.includes(w) ? 4 : 0) + (desc.includes(w) ? 2 : 0);
       }
       if (tw.length) score += 5 * hit / tw.length; // titre court et précis devant
+      // Tous les mots dans le titre ou les tags : bien devant les correspondances du seul résumé.
+      if (o.words.every((w) => strong.includes(w))) score += 40;
       score += o.tags.length * 6 + Math.log10((r.kudos || 0) + 1);
       out.push([score, r]);
     }

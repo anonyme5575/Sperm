@@ -32,7 +32,13 @@
     if (r.chapters != null) b.push(`<span class="b">${r.chapters}/${r.chaptersTotal == null ? "?" : r.chaptersTotal} chap.</span>`);
     b.push(r.complete ? `<span class="b done">Terminée</span>` : `<span class="b wip">En cours d'écriture</span>`);
     if (r.kudos) b.push(`<span class="b">♥ ${A.fmt(r.kudos)}</span>`);
-    const tags = [...(r.relationships || []), ...(r.tags || [])].slice(0, 6);
+    // Tags qui correspondent à la recherche d'abord, en surbrillance : on voit pourquoi le résultat est là.
+    const qw = S.parseQuery(state.q || "");
+    const want = [...qw.words, ...qw.tags, ...qw.phrases];
+    const nn = (x) => String(x).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const hit = (t) => want.some((w) => nn(t).includes(w));
+    const all = [...(r.relationships || []), ...(r.tags || [])];
+    const tags = [...all.filter(hit), ...all.filter((t) => !hit(t))].slice(0, 6);
     const mine = inList(r);
     const summary = r.summaryTr && !r.showOrig ? r.summaryTr : r.summary;
     return `<article class="card sres" data-i="${i}" style="--i:${i % 12}">
@@ -45,7 +51,7 @@
         </div>
       </div>
       <div class="badges">${b.join("")}</div>
-      ${tags.length ? `<div class="badges">${tags.map((t) => `<span class="b shelf">${esc(t)}</span>`).join("")}</div>` : ""}
+      ${tags.length ? `<div class="badges">${tags.map((t) => `<span class="b shelf${hit(t) ? " hit" : ""}">${esc(t)}</span>`).join("")}</div>` : ""}
       ${summary ? `<div class="ssum">${esc(summary)}</div>` : ""}
       ${r.summaryTr ? `<button class="link" data-s="${r.showOrig ? "tr" : "orig"}">${r.showOrig ? "Voir la traduction" : "Résumé traduit · voir l'original"}</button>` : ""}
       <div class="actions">

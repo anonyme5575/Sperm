@@ -224,6 +224,7 @@ async function test(name, fn) {
     assert.deepStrictEqual(await R("coeur #angst"), ["Le coeur des glaces"]);
     assert.deepStrictEqual(await R("coeur -bts"), ["Coeur"]);
     assert.deepStrictEqual(await R("@neo"), ["Glace et feu"]);
+    assert.deepStrictEqual(await R("plume"), []); // le nom de l'auteur ne compte pas sans @
     assert.deepStrictEqual(await R("glace", { complete: true }), ["Coeur de Glace", "Le coeur des glaces"]);
     assert.deepStrictEqual(await R("glace", { noMature: true, language: "Français" }), ["Coeur de Glace", "Le coeur des glaces"]);
     assert.deepStrictEqual(await R("coeur #enemies-to-lovers"), ["Coeur de Glace"]); // tag sans tirets

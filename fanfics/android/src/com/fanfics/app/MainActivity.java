@@ -256,7 +256,8 @@ public class MainActivity extends Activity {
             c.setReadTimeout(25000);
             c.setRequestProperty("User-Agent", UA);
             c.setRequestProperty("Accept", "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8");
-            c.setRequestProperty("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8");
+            // Wattpad classe sa recherche selon la langue annoncée : pas de préférence, sinon il ne montre que du français.
+            if (!current.contains("wattpad.com")) c.setRequestProperty("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8");
             int code = c.getResponseCode();
             if (code >= 300 && code < 400 && c.getHeaderField("Location") != null) {
                 current = new URL(new URL(current), c.getHeaderField("Location")).toString();

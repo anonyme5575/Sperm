@@ -239,7 +239,7 @@ async function test(name, fn) {
     assert.match(urls[0], /\/v4\/search\/stories\?query=Luffy%20dxd&limit=50&offset=50&mature=true/);
     assert.match(urls[1], /\/v4\/stories\?query=Luffy%20dxd&filter=hot/);
     assert.match(urls[2], /\/api\/v3\/stories\?query=Luffy%20dxd/);
-    assert.deepStrictEqual(await ev(() => Parsers.Search.wattpadQueries('Luffy dxd -yaoi')), ["luffy dxd", "#luffy #dxd"]);
+    assert.deepStrictEqual(await ev(() => Parsers.Search.wattpadQueries('Luffy dxd -yaoi')), ["luffy dxd", "#luffy #dxd", "#luffy", "#dxd"]);
   });
 
   await test("recherche Wattpad : résultats", async () => {
@@ -354,7 +354,8 @@ async function test(name, fn) {
     if (routes[url]) return routes[url];
     // Wattpad : plusieurs adresses d'API possibles ; seules certaines répondent.
     const wp = [
-      [/\/v4\/search\/stories\?query=luffy/, { ok: true, status: 200, body: page("wattpad-luffy.json") }],
+      [/\/v4\/search\/stories\?query=luffy/, { ok: true, status: 200, body: JSON.stringify({ stories: JSON.parse(page("wattpad-luffy.json")).stories.filter((x) => x.id === "13") }) }],
+      [/\/v4\/stories\?query=%23dxd&/, { ok: true, status: 200, body: page("wattpad-luffy.json") }],
       [/\/api\/v3\/stories\?query=coeur/, { ok: true, status: 200, body: page("wattpad-search-2.json") }],
       [/\/api\/v3\/users\/jose\?/, { ok: true, status: 200, body: page("wattpad-user.json").replace("luna_ecrit", "jose") }],
       [/\/api\/v3\/users\/jose\/stories\?/, { ok: true, status: 200, body: page("wattpad-search.json") }],

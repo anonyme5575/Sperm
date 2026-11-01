@@ -668,9 +668,9 @@
     for (const r of results) {
       const title = norm(r.title), tags = (r.tags || []).map(norm), author = norm(r.author), desc = norm(r.summary);
       const all = [title, tags.join(" "), author, desc].join(" \n ");
-      if (f.complete && !r.complete) continue;
-      if (f.noMature && r.mature) continue;
-      if (f.language && !norm(r.language).startsWith(norm(f.language).slice(0, 4))) continue;
+      const byFilter = (f.complete && !r.complete) || (f.noMature && r.mature) ||
+        (f.language && !norm(r.language).startsWith(norm(f.language).slice(0, 4)));
+      if (byFilter) { if (f.stats) f.stats.filtered = (f.stats.filtered || 0) + 1; continue; }
       if (o.exclude.some((w) => all.includes(w))) continue;
       if (!o.phrases.every((ph) => all.includes(ph))) continue;
       if (!o.tags.every((t) => tags.some((x) => x === t || x.replace(/[\s_-]/g, "") === t.replace(/[\s_-]/g, "")))) continue;
@@ -709,11 +709,15 @@
     // Variantes envoyées en parallèle : Wattpad compare des mots entiers, les tags complètent le texte.
     wattpadQueries(q) {
       const o = parseQuery(q);
+      const words = [...o.words, ...o.tags].map((w) => w.replace(/\s+/g, ""));
       const out = [o.api];
-      const words = [...o.words, ...o.tags];
-      if (words.length) out.push(words.map((w) => "#" + w.replace(/\s+/g, "")).join(" "));
-      return out.filter((x, i, a) => x && a.indexOf(x) === i);
+      if (words.length > 1) out.push(words.map((w) => "#" + w).join(" "));
+      // Un mot fréquent (luffy) écrase un mot rare (dxd) dans le classement de Wattpad :
+      // chaque mot est aussi cherché seul, en tag, pour atteindre les histoires du mot rare.
+      if (words.length > 1) for (const w of words) out.push("#" + w);
+      return out.filter((x, i, a) => x && a.indexOf(x) === i).slice(0, 5);
     },
+
 
     sites: ["ao3", "ffn", "wattpad"],
 

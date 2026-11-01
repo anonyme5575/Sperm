@@ -231,11 +231,17 @@
   async function wattpadPrecise(t) {
     const f = { language: $("wLang").value, complete: $("wComplete").checked, noMature: !$("wMature").checked };
     const queries = S.wattpadQueries(state.q);
+    // Texte : adresse du site + ancienne adresse (v3, celle qui a déjà marché) ; tags : v4/stories.
+    const jobs = [];
+    queries.forEach((q, k) => {
+      if (k === 0) { jobs.push([q, null]); jobs.push([q, 2]); } else jobs.push([q, null]);
+    });
     const raw = [], seen = new Set();
     let next = false, errors = 0;
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 2; i++) {
       if (i) state.page++;
-      const pages = await Promise.all(queries.map((q) => wattpadPage(q, state.page).catch(() => { errors++; return null; })));
+      const pages = await Promise.all(jobs.map(([q, k]) => (k == null ? wattpadPage(q, state.page)
+        : A.download(S.wattpadUrls(q, state.page)[k], "wattpad").then((b) => S.parse("wattpad", b))).catch(() => { errors++; return null; })));
       if (t !== state.token) return { results: [], next: false };
       next = false;
       for (const r of pages) if (r) {
@@ -245,12 +251,15 @@
       if (!next || S.refine(raw, state.q, f).length >= 20) break;
     }
     if (!raw.length && errors) throw new Error("Wattpad ne répond pas à la recherche.");
+    f.stats = {};
     const exact = S.refine(raw, state.q, f);
+    const filtered = f.stats.filtered || 0;
     const words = S.parseQuery(state.q).words.length;
     const near = !exact.length && words > 1 ? S.refine(raw, state.q, f, Math.ceil(words / 2)) : [];
-    state.note = exact.length ? `Wattpad : ${raw.length} reçues, ${exact.length} contiennent tous les mots.`
-      : near.length ? `Aucune ne contient tous les mots (Wattpad en a renvoyé ${raw.length}). Résultats proches :`
-      : `Wattpad a renvoyé ${raw.length} histoires, aucune ne correspond (filtres compris).`;
+    const excl = filtered ? ` ${filtered} écartées par tes filtres (langue, terminées, mature).` : "";
+    state.note = exact.length ? `Wattpad : ${raw.length} reçues, ${exact.length} contiennent tous les mots.${excl}`
+      : near.length ? `Aucune ne contient tous les mots (${raw.length} reçues).${excl} Résultats proches :`
+      : `Wattpad a renvoyé ${raw.length} histoires, aucune ne correspond.${excl}`;
     return { results: exact.length ? exact : near, next };
   }
 
